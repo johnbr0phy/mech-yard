@@ -968,6 +968,27 @@ shoulder:[
    GK.piston(B,[w*0.24,-h*0.6,d*0.55],[w*0.8,-h*0.15,d*0.3],mr*0.15);
    GK.hose(B,[w*0.15,0,-d*0.6],[w*0.85,0,-d*0.25],mr*0.13,7);
  }},
+{n:"CYCLONE",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[w*0.2,mr*1.05],[w*0.42,mr*0.92]],
+     hullDet([0.4,0.8],[],[]),{hideA:true});
+   FORM.block(B,[w*0.5,0,0],w*0.42,h*0.7,d*0.7,{chamfer:0.66,det:{ribs:3,line:0.72}});
+   /* the carapace launcher: cells stood on top of the yoke, canted forward,
+      which is where a walker this size actually carries its missiles */
+   WPN.cells(B,[w*0.5,h*1.10,0],[0,1,0],2,4,h*0.5,h*0.44);
+   GK.piston(B,[w*0.24,h*0.5,-d*0.5],[w*0.7,h*0.95,-d*0.3],mr*0.14);
+   WPN.feed(B,[w*0.14,-h*0.4,d*0.3],[w*0.5,h*0.5,d*0.2],mr*0.13);
+ }},
+{n:"TWIN MOUNT",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[w*0.22,mr*1.06],[w*0.44,mr*0.9]],
+     hullDet([0.4,0.8],[],[]),{hideA:true});
+   GK.gear(B,[w*0.48,h*0.7,0],"y",mr*0.6,12);
+   FORM.block(B,[w*0.5,h*1.0,0],w*0.34,h*0.3,d*0.5,{chamfer:0.64,det:{ribs:3,line:0.75}});
+   for(const s of [-1,1]) WPN.barrel(B,[w*0.5,h*1.0,s*d*0.26],[w*0.5,h*1.0,s*d*0.26+d*1.9],
+     mr*0.22,"bolter");
+   WPN.feed(B,[w*0.2,-h*0.3,-d*0.3],[w*0.5,h*0.7,-d*0.2],mr*0.13);
+ }},
 {n:"LAUNCH RAIL",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
    FORM.block(B,[w*0.45,0,0],w*0.45,h*0.6,d*0.6,{hideA:true,det:{ribs:3,line:0.75}});
@@ -1091,6 +1112,7 @@ fore:[
              {det:{ribs:3,line:0.8}});
      GK.piston(B,[l*0.5,s*r*0.82,0],[l*0.9,s*r*0.60,0],r*0.13);
    }
+   WPN.under(B,[l*0.72,r*0.2,-r*0.86],[0,1,0],l*0.5,r*0.40,"bolter");
    GK.hose(B,[l*0.1,r*0.7,0],[l*0.6,r*0.5,0],r*0.11,5);
  }},
 {n:"AUTOCANNON",make(B,mr,rr,R,E,probe,P){
@@ -1098,7 +1120,9 @@ fore:[
    B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.14,r*1.06],[l*0.34,r*0.96]],
      hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.9]});
    FORM.slab(B,[l*0.52,0,0],[1,0,0],l*0.28,r*0.90,r*0.78,{det:{ribs:3,line:0.72}});
-   GK.barrel(B,[l*0.5,r*0.1,0],[l*1.55,r*0.1,0],r*0.42);
+   WPN.barrel(B,[l*0.5,r*0.1,0],[l*1.9,r*0.1,0],r*0.66,"solid");
+   WPN.under(B,[l*0.9,-r*0.6,0],[0,1,0],l*0.5,r*0.36,"bolter");
+   WPN.feed(B,[l*0.16,-r*0.7,r*0.4],[l*0.55,r*0.1,r*0.5],r*0.14);
    FORM.slab(B,[l*0.56,-r*0.92,0],[1,0,0],l*0.20,r*0.30,r*0.48,{chamfer:0.6,det:{ribs:5,line:0.8}});
    GK.hose(B,[l*0.2,-r*0.72,r*0.5],[l*0.55,-r*0.82,r*0.3],r*0.12,5);
    GK.bolts(B,[l*0.34,0,0],"x",r*0.72,8);
@@ -1108,9 +1132,7 @@ fore:[
    B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.16,r*1.04],[l*0.52,r*0.82]],
      hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.86]});
    FORM.slab(B,[l*0.62,0,0],[1,0,0],l*0.14,r*0.62,r*0.56,{chamfer:0.6});
-   B.lathe([l*0.62,r*0.15,0],[0,1,0],
-     [[0,r*0.30],[l*0.30,r*0.34],[l*0.72,r*0.26],[l*0.88,r*0.24]],
-     hullDet([0.2,0.42,0.64,0.86],[0.4,2.5,4.4],[]),{ell:[1,0.84]});
+   WPN.barrel(B,[l*0.62,r*0.15,0],[l*0.62,r*0.15+l*1.5,0],r*0.50,"las");
    for(const s of [-1,1]) B.panel([[l*0.75,s*r*0.3],[l*1.35,s*r*0.3],[l*1.35,s*r*0.75],[l*0.8,s*r*0.8]],r*0.07,
      {det:{ribs:3,line:0.85}});
    B.disc([l*0.62,r*1.03,0],[0,1,0],r*0.28,r*0.12);
@@ -1136,6 +1158,79 @@ fore:[
      hullDet([0.16,0.34,0.52,0.7,0.88],[0.3,1.9,3.5,5.1],[]));
    GK.piston(B,[l*0.14,r*0.82,0],[l*0.5,r*0.6,0],r*0.16);
    GK.hose(B,[l*0.14,-r*0.82,0],[l*0.5,-r*0.6,0],r*0.13,5);
+ }},
+{n:"TWIN LASCANNON",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.5,0.68), r=mr*rr(0.86,1.04);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.2,r*1.04],[l*0.5,r*0.92]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.88]});
+   WPN.mantlet(B,[l*0.62,r*0.2,0],[0,1,0],r*1.05,rr);
+   WPN.twin(B,[l*0.62,r*0.75,0],[0,1,0],l*2.1,r*0.52,r*0.66,"las");
+   WPN.feed(B,[l*0.2,-r*0.6,r*0.4],[l*0.60,r*0.2,r*0.5],r*0.15);
+   GK.bolts(B,[l*0.5,0,0],"x",r*0.78,8);
+ }},
+{n:"ASSAULT CANNON",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.55,0.75), r=mr*rr(0.9,1.10);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.18,r*1.06],[l*0.46,r*0.94]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.9]});
+   WPN.mantlet(B,[l*0.58,r*0.15,0],[0,1,0],r*1.10,rr);
+   WPN.rotary(B,[l*0.58,r*0.85,0],[0,1,0],l*1.9,r*1.02,6);
+   /* the drum and the belt that feeds it, which is most of why the arm reads
+      as plumbed into the machine rather than carried by it */
+   B.lathe([l*0.44,r*0.5,-r*1.05],[0,0,1],
+     [[0,r*0.5],[r*0.5,r*0.72],[r*1.6,r*0.72],[r*2.1,r*0.5]],
+     hullDet([0.3,0.6,0.85],[0.4,2.2,3.9],[]));
+   WPN.feed(B,[l*0.10,-r*0.5,r*0.3],[l*0.50,r*0.5,r*0.7],r*0.17);
+ }},
+{n:"POWER FIST",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.55,0.75), r=mr*rr(0.95,1.15);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.16,r*1.08],[l*0.56,r*0.96]],
+     hullDet([0.35,0.7],[],[]),{hideA:true,ell:[1,0.9]});
+   for(const s of [-1,1]) GK.piston(B,[l*0.06,s*r*0.7,0],[l*0.56,s*r*0.5,0],r*0.16);
+   /* the fist is a block with four thick fingers folded over it — the scale is
+      the point, so it is deliberately wider than the arm that carries it */
+   FORM.block(B,[l*0.86,r*0.1,0],l*0.30,r*1.05,r*1.28,{chamfer:0.66,det:{ribs:4,line:0.72}});
+   for(let i=0;i<4;i++){
+     const z=(i/3-0.5)*r*1.9;
+     FORM.bone(B,[l*0.92,r*0.86,z],[l*1.26,r*1.10,z],r*0.32,{swell:0.12,r1:0.82});
+     FORM.bone(B,[l*1.26,r*1.10,z],[l*1.42,r*0.50,z],r*0.27,{swell:0.10,r1:0.7});
+     B.disc([l*1.20,r*0.92,z],[0,0,1],r*0.26,r*0.1);
+   }
+   FORM.bone(B,[l*0.78,r*0.30,r*1.05],[l*1.02,r*0.86,r*1.20],r*0.28,{r1:0.78});
+   FORM.bone(B,[l*1.02,r*0.86,r*1.20],[l*1.22,r*0.86,r*0.90],r*0.22,{r1:0.7});
+   WPN.under(B,[l*1.02,r*0.30,-r*1.15],[0,1,0],l*0.7,r*0.62,R()<0.5?"flamer":"bolter");
+   WPN.feed(B,[l*0.2,-r*0.7,0],[l*0.86,-r*0.5,-r*0.5],r*0.15);
+ }},
+{n:"MULTI-MELTA",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.5,0.68), r=mr*rr(0.88,1.06);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.2,r*1.04],[l*0.5,r*0.94]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.88]});
+   WPN.mantlet(B,[l*0.62,r*0.2,0],[0,1,0],r*1.06,rr);
+   WPN.twin(B,[l*0.62,r*0.75,0],[0,1,0],l*1.25,r*0.62,r*0.76,"melta");
+   /* the flasks that feed it, slung under the bores */
+   for(const s of [-1,1]) B.lathe([l*0.86,r*0.3,s*r*0.5],[0,1,0],
+     [[0,r*0.24],[l*0.5,r*0.32],[l*0.86,r*0.22]],hullDet([0.35,0.7],[],[]));
+   WPN.feed(B,[l*0.2,-r*0.6,r*0.4],[l*0.62,r*0.1,r*0.6],r*0.16);
+ }},
+{n:"PLASMA CANNON",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.55,0.72), r=mr*rr(0.86,1.04);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.18,r*1.04],[l*0.5,r*0.92]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.88]});
+   WPN.mantlet(B,[l*0.62,r*0.2,0],[0,1,0],r*1.05,rr);
+   WPN.barrel(B,[l*0.62,r*0.65,0],[l*0.62,r*0.65+l*1.7,0],r*0.80,"plasma");
+   /* the coolant bottles either side, and the vent stack behind them */
+   for(const s of [-1,1]) B.lathe([l*0.52,r*0.3,s*r*0.86],[0,1,0],
+     [[0,r*0.24],[l*0.4,r*0.34],[l*0.9,r*0.24]],hullDet([0.3,0.7],[],[]));
+   GK.vent(B,[l*0.40,-r*0.5,0],l*0.16,r*0.12,r*0.6,5,"x");
+   WPN.feed(B,[l*0.14,-r*0.6,-r*0.4],[l*0.58,r*0.1,-r*0.6],r*0.16);
+ }},
+{n:"MISSILE RACK",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.5,0.7), r=mr*rr(0.9,1.08);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.2,r*1.04],[l*0.52,r*0.94]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.9]});
+   WPN.mantlet(B,[l*0.64,r*0.2,0],[0,1,0],r*1.06,rr);
+   WPN.cells(B,[l*0.66,r*1.0,0],[0,1,0],3,3,r*1.20,r*0.78);
+   WPN.under(B,[l*1.10,r*0.25,0],[0,1,0],l*0.6,r*0.58,"bolter");
+   WPN.feed(B,[l*0.18,-r*0.6,r*0.4],[l*0.62,r*0.2,r*0.5],r*0.15);
  }},
 {n:"MISSILE FIST",make(B,mr,rr,R,E,probe,P){
    const l=E.x*rr(0.62,0.85), r=mr*rr(0.92,1.16);
@@ -1321,23 +1416,33 @@ aux:[
    what stops the library reading as nine unrelated drawings. ---- */
 drive:[
 {n:"BIPED",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, w=E.z*0.5, r=mr*rr(0.85,1.05);
+   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.85,1.05),w,0.62);
+   /* hip, knee, ankle, sole: three bones and a short ankle block, which is
+      what a plantigrade leg is. The stance is set from the girdle, not from
+      the socket radius — see LEG.gauge. */
    for(const s of [-1,1]) LEG.chain(B,[
-     [0,0,s*w*0.9],[L*0.42,L*0.10,s*w*0.95],[L*0.80,-L*0.04,s*w*0.88],[L*0.93,0,s*w*0.85]
+     [0,0,s*w*0.98],[L*0.42,L*0.10,s*w*1.02],[L*0.80,-L*0.04,s*w*0.94],[L*0.93,0,s*w*0.90]
    ],[r*1.05,r*0.92,r*0.72,r*0.6],rr,{plate:true});
-   for(const s of [-1,1]) LEG.foot(B,[L*0.93,0,s*w*0.85],L*0.14,r,rr,"plate");
+   for(const s of [-1,1]) LEG.foot(B,[L*0.93,0,s*w*0.90],L*0.14,r,rr,"plate");
  }},
 {n:"REVERSE-JOINT",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, w=E.z*0.5, r=mr*rr(0.8,1.0);
-   /* the knee goes the other way and the ankle becomes a third bone — the
-      whole point of a digitigrade leg is that it stands on its toes */
+   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.8,1.0),w,0.58);
+   /* A digitigrade leg is THREE bones, not four: femur, tibia, and one long
+      metatarsal standing the machine on its toes. The fourth was the mistake —
+      a stub between the hock and the foot that read as an extra joint and put
+      two short segments in a row doing one segment's job.
+      The zigzag is forward, BACK, forward: the knee leads slightly, the hock
+      throws back — that is the joint everyone reads as a backward knee — and
+      the long shank comes down and forward onto the claws. The taper is steep
+      on purpose; a metatarsal the thickness of a thigh is what makes a chicken
+      walker look like a pair of trousers. */
    for(const s of [-1,1]) LEG.chain(B,[
-     [0,0,s*w*0.9],[L*0.40,-L*0.22,s*w*0.95],[L*0.72,L*0.16,s*w*0.9],[L*0.92,L*0.02,s*w*0.86]
-   ],[r*1.1,r*0.9,r*0.66,r*0.52],rr,{plate:true});
-   for(const s of [-1,1]) LEG.foot(B,[L*0.92,L*0.02,s*w*0.86],L*0.16,r*0.9,rr,"talon");
+     [0,0,s*w*0.96],[L*0.28,L*0.10,s*w*1.0],[L*0.62,-L*0.26,s*w*0.94],[L*0.95,L*0.12,s*w*0.88]
+   ],[r*1.05,r*0.88,r*0.56,r*0.34],rr,{plate:true});
+   for(const s of [-1,1]) LEG.foot(B,[L*0.95,L*0.12,s*w*0.88],L*0.15,r*0.52,rr,"talon");
  }},
 {n:"QUADRUPED",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, w=E.z*0.5, r=mr*rr(0.6,0.78);
+   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.6,0.78),w,0.46);
    FORM.block(B,[L*0.1,0,0],L*0.12,E.y*0.45,w*0.9,{hideA:true,det:{ribs:3,line:0.75}});
    for(const s of [-1,1]) for(const f of [-1,1]){
      const y0=f*E.y*0.42;
@@ -1349,7 +1454,7 @@ drive:[
    }
  }},
 {n:"SPIDER",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, w=E.z*0.5, r=mr*rr(0.42,0.58);
+   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.42,0.58),w,0.30);
    B.tube([-mr*0.3,0,0],[L*0.16,0,0],mr*1.05,mr*1.15,{hideA:true,det:hullDet([0.4,0.8],[],[])});
    GK.gear(B,[L*0.18,0,0],"x",mr*1.1,20);
    /* six legs on a ring, each folding up over the body before it comes down —
@@ -1367,7 +1472,7 @@ drive:[
    }
  }},
 {n:"OCTOPOD",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, r=mr*rr(0.34,0.48);
+   const L=E.x, r=LEG.gauge(mr*rr(0.34,0.48),E.z*0.5,0.24);
    B.tube([-mr*0.3,0,0],[L*0.2,0,0],mr*1.05,mr*1.25,{hideA:true,det:hullDet([0.35,0.7],[0.5,3.8],[])});
    B.disc([L*0.22,0,0],[1,0,0],mr*1.2,mr*0.6);
    GK.bolts(B,[L*0.23,0,0],"x",mr*1.0,16);
@@ -1384,7 +1489,7 @@ drive:[
    }
  }},
 {n:"TRIPOD",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, r=mr*rr(0.72,0.92);
+   const L=E.x, r=LEG.gauge(mr*rr(0.72,0.92),E.z*0.5,0.54);
    B.tube([-mr*0.3,0,0],[L*0.14,0,0],mr*1.05,mr*1.0,{hideA:true});
    GK.gear(B,[L*0.16,0,0],"x",mr*0.95,16);
    for(let i=0;i<3;i++){
@@ -1463,6 +1568,13 @@ drive:[
    joint with a ram across it, and runs one conduit the whole length — so a
    spider's third knee and a biped's only knee are the same machine. */
 const LEG={
+  /* How thick is a leg allowed to be? It used to be the socket's mount radius,
+     which is a property of the TORSO — so a wide-bodied chassis on a narrow
+     girdle grew legs fatter than the gap between them and the pair fused into
+     one mass. A limb is sized by the stance it stands in, not by what it hangs
+     off: k is the share of the half-stance the bone may fill, and the swell and
+     the armour shell take their cut out of the rest. */
+  gauge(want,halfStance,k){ return Math.min(want,Math.max(halfStance,1e-6)*k); },
   /* A leg used to be a string of truncated cones with a ball at each kink,
      which is exactly what plumbing looks like. Now every bone swells through
      its belly and thins at both joints, and every joint gets a flared cap that
@@ -1524,15 +1636,18 @@ const LEG={
           {chamfer:0.6});
       GK.piston(B,[x-size*0.36,y-size*0.5,z],[x+size*0.40,y-size*0.92,z],r*0.20);
     }else if(kind==="talon"){
-      FORM.bone(B,[x,y,z],[x+size*0.55,y+size*0.95,z],r*0.86,{swell:0.14,mid:0.4});
+      /* claws straight off the end of the shank. This used to start with a
+         whole extra bone, which is what put a phantom joint in every
+         reverse-joint leg — the shank already arrives here, it does not need
+         a second one before the toes. */
       for(const s of [-1,0,1]){
-        FORM.bone(B,[x+size*0.5,y+size*0.9,z+s*r*0.6],[x+size*0.95,y+size*1.9,z+s*r*0.85],
-          r*0.28,{swell:0.16,r1:0.5});
-        B.lathe([x+size*0.95,y+size*1.9,z+s*r*0.85],
-          [size*0.12,size*0.44,0],[[0,r*0.16],[size*0.30,r*0.09],[size*0.46,r*0.01]],
-          hullDet([0.5],[],[]));
+        FORM.bone(B,[x,y,z],[x+size*0.72,y+size*1.5,z+s*r*1.5],r*0.42,{swell:0.14,r1:0.46});
+        B.lathe([x+size*0.72,y+size*1.5,z+s*r*1.5],[size*0.22,size*0.5,s*r*0.4],
+          [[0,r*0.22],[size*0.32,r*0.12],[size*0.5,r*0.015]],hullDet([0.5],[],[]));
       }
-      FORM.bone(B,[x+size*0.30,y-size*0.2,z],[x+size*0.82,y-size*1.1,z],r*0.24,{r1:0.42});
+      FORM.bone(B,[x,y,z],[x+size*0.66,y-size*1.15,z],r*0.36,{r1:0.4});
+      B.lathe([x+size*0.66,y-size*1.15,z],[size*0.2,-size*0.42,0],
+        [[0,r*0.16],[size*0.28,r*0.02]],hullDet([0.5],[],[]));
     }else if(kind==="pad"){
       B.lathe([x,y,z],[1,0,0],[[0,r*0.80],[size*0.42,r*1.10],[size*0.86,r*1.26],
         [size*1.10,r*1.20]],hullDet([0.35,0.7],[],[]),{ell:[1,0.86]});
@@ -1569,6 +1684,125 @@ const LEG={
     }
   }
 };
+/* ===================== weapon kit =====================
+   The Dreadnought pattern, which is a different idea about arms from the one
+   the library started with. Three things make it read:
+
+     1. BOTH ARMS ARE WEAPONS. A hand is the exception, not the default. The
+        arm does not hold a gun — the gun IS the arm, bolted to a mantlet at
+        the elbow, and the mantlet's round mount plate is the joint you see.
+     2. TWIN-LINKED. Two barrels side by side on one mount is the single most
+        recognisable silhouette in the whole catalogue, and it costs one extra
+        call. Nothing else says "this is a weapon system, not a rifle".
+     3. THE SECONDARY IS UNDERSLUNG, and the feed is visible. A storm bolter
+        under the fist, a belt or a power cable running back into the body —
+        that is what makes a weapon look plumbed into the machine instead of
+        placed next to it.
+
+   Barrels come in patterns rather than sizes, because a las tube and a melta
+   bore are different objects, not the same object scaled. */
+const WPN={
+  /* the block the weapon hangs off and the round plate that pins it there */
+  mantlet(B,c,axis,r,rr){
+    FORM.block(B,c,r*0.9,r*0.62,r*0.86,{chamfer:0.66,det:{ribs:4,line:0.72}});
+    B.disc([c[0],c[1],c[2]+r*0.88],[0,0,1],r*0.74,r*0.30);
+    GK.bolts(B,[c[0],c[1],c[2]+r*0.90],"z",r*0.56,8);
+    B.lathe([c[0],c[1]-r*0.7,c[2]],[0,1,0],
+      [[0,r*0.46],[r*0.5,r*0.62],[r*1.2,r*0.58]],hullDet([0.4,0.8],[],[]),{ell:[1,0.86]});
+  },
+  /* Patterns, not sizes. `a`→`b` is the bore axis. */
+  barrel(B,a,b,r,kind){
+    const d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+    const L2=Math.hypot(d[0],d[1],d[2])||1;
+    const m=k=>[a[0]+d[0]*k,a[1]+d[1]*k,a[2]+d[2]*k];
+    if(kind==="las"){
+      /* long, slim, and ringed: the coils are the whole read */
+      B.lathe(a,d,[[0,r*1.2],[L2*0.14,r*1.05],[L2*0.82,r*0.72],[L2,r*0.86]],
+        hullDet([0.3,0.6,0.85],[0.4,2.4,4.1],[]));
+      for(let i=0;i<Math.max(3,GK.n(5));i++)
+        B.disc(m(0.18+0.14*i),d,r*(1.22-0.06*i),r*0.5);
+      B.disc(b,d,r*0.92,r*0.34);
+    }else if(kind==="melta"){
+      /* short and all bore — a wide aperture on a stubby coil housing */
+      B.lathe(a,d,[[0,r*1.0],[L2*0.34,r*1.24],[L2*0.72,r*1.16],[L2,r*1.34]],
+        hullDet([0.35,0.7],[0.4,2.2,3.9],[]));
+      B.disc(b,d,r*1.30,r*0.86);
+      B.disc(m(0.5),d,r*1.34,r*0.7);
+    }else if(kind==="plasma"){
+      /* a bulbous containment bottle that necks down to an emitter */
+      B.lathe(a,d,[[0,r*0.9],[L2*0.22,r*1.42],[L2*0.52,r*1.34],[L2*0.74,r*0.66],[L2,r*0.54]],
+        hullDet([0.24,0.5,0.76],[0.4,2.0,3.6,5.2],[]));
+      GK.vent(B,m(0.36),r*0.5,r*1.5,r*0.34,4,"y");
+      B.disc(b,d,r*0.56,r*0.26);
+    }else if(kind==="bolter"){
+      /* ribbed cooling jacket over a short heavy tube */
+      B.lathe(a,d,[[0,r*1.06],[L2*0.16,r*0.94],[L2*0.86,r*0.86],[L2,r*1.0]],
+        hullDet([0.4,0.8],[0.4,2.2,3.9],[]));
+      for(let i=0;i<Math.max(3,GK.n(6));i++) B.disc(m(0.22+0.11*i),d,r*1.12,r*0.72);
+      B.disc(b,d,r*0.9,r*0.44);
+    }else{
+      /* solid shot: heavy tube, jacket, muzzle brake */
+      B.lathe(a,d,[[0,r*1.1],[L2*0.2,r*0.96],[L2*0.8,r*0.82],[L2*0.9,r*0.96],[L2,r*0.9]],
+        hullDet([0.24,0.5,0.76],[0.5,2.6,4.2],[]));
+      for(const k of [0.86,0.94]) B.disc(m(k),d,r*1.02,r*0.5);
+      B.disc(b,d,r*0.86,r*0.42);
+    }
+  },
+  /* two bores on one mount, which is the pattern's signature */
+  twin(B,c,dir,len,r,gap,kind){
+    for(const s of [-1,1]){
+      const a=[c[0],c[1],c[2]+s*gap];
+      WPN.barrel(B,a,[a[0]+dir[0]*len,a[1]+dir[1]*len,a[2]+dir[2]*len],r,kind);
+    }
+    FORM.block(B,[c[0],c[1]+len*0.14,c[2]],r*0.8,len*0.16,gap*1.5,
+      {chamfer:0.62,det:{ribs:3,line:0.75}});
+  },
+  /* a rotary: drum, a cluster of bores on a pitch circle, and its drive gear */
+  rotary(B,c,dir,len,r,n){
+    const N=Math.max(4,GK.n(n||6));
+    B.lathe(c,dir,[[0,r*0.96],[len*0.16,r*1.12],[len*0.46,r*1.06],[len*0.54,r*0.86]],
+      hullDet([0.3,0.6,0.85],[0.4,1.8,3.2,4.6],[]));
+    GK.gear(B,[c[0]+dir[0]*len*0.16,c[1]+dir[1]*len*0.16,c[2]+dir[2]*len*0.16],
+      Math.abs(dir[1])>0.5?"y":Math.abs(dir[0])>0.5?"x":"z",r*1.16,14);
+    const [bu,bv]=[[1,0,0],[0,0,1]];
+    for(let i=0;i<N;i++){
+      const a2=i/N*Math.PI*2;
+      const o=[c[0]+bu[0]*Math.cos(a2)*r*0.62+bv[0]*Math.sin(a2)*r*0.62,
+               c[1]+bu[1]*Math.cos(a2)*r*0.62+bv[1]*Math.sin(a2)*r*0.62,
+               c[2]+bu[2]*Math.cos(a2)*r*0.62+bv[2]*Math.sin(a2)*r*0.62];
+      B.lathe([o[0]+dir[0]*len*0.42,o[1]+dir[1]*len*0.42,o[2]+dir[2]*len*0.42],dir,
+        [[0,r*0.19],[len*0.52,r*0.17],[len*0.58,r*0.20]],hullDet([0.5],[],[]));
+    }
+    B.disc([c[0]+dir[0]*len,c[1]+dir[1]*len,c[2]+dir[2]*len],dir,r*0.86,r*0.30);
+  },
+  /* the secondary that hangs under the main weapon — the Dreadnought tell */
+  under(B,c,dir,len,r,kind){
+    FORM.block(B,c,r*0.7,r*0.5,r*0.7,{chamfer:0.6,det:{ribs:3,line:0.8}});
+    if(kind==="flamer"){
+      B.lathe(c,dir,[[0,r*0.5],[len*0.6,r*0.42],[len,r*0.66]],hullDet([0.4,0.8],[],[]));
+      B.disc([c[0]+dir[0]*len,c[1]+dir[1]*len,c[2]+dir[2]*len],dir,r*0.62,r*0.34);
+      B.lathe([c[0]-dir[0]*r*0.4,c[1]-dir[1]*r*0.4,c[2]-dir[2]*r*0.4],[0,0,1],
+        [[-r*0.9,r*0.3],[0,r*0.44],[r*0.9,r*0.3]],hullDet([0.5],[],[]));
+    }else{
+      for(const s of [-1,1]) WPN.barrel(B,[c[0],c[1],c[2]+s*r*0.34],
+        [c[0]+dir[0]*len,c[1]+dir[1]*len,c[2]+dir[2]*len+s*r*0.34],r*0.26,"bolter");
+    }
+  },
+  /* missile cells, in a block or in a rack */
+  cells(B,c,dir,nx,nz,r,pitch){
+    const NX=Math.max(2,GK.n(nx)), NZ=Math.max(2,GK.n(nz));
+    FORM.block(B,c,pitch*NX*0.6,r*1.1,pitch*NZ*0.6,{chamfer:0.68,det:{ribs:3,line:0.72}});
+    for(let i=0;i<NX;i++)for(let j=0;j<NZ;j++){
+      const o=[c[0]+(i/(NX-1||1)-0.5)*pitch*NX*0.9,c[1],c[2]+(j/(NZ-1||1)-0.5)*pitch*NZ*0.9];
+      B.lathe([o[0]+dir[0]*r*0.9,o[1]+dir[1]*r*0.9,o[2]+dir[2]*r*0.9],dir,
+        [[0,pitch*0.34],[r*0.5,pitch*0.32]],hullDet([0.5],[],[]));
+      B.disc([o[0]+dir[0]*r*1.4,o[1]+dir[1]*r*1.4,o[2]+dir[2]*r*1.4],dir,pitch*0.30,pitch*0.16);
+    }
+  },
+  /* the belt or the power cable, running back into the machine */
+  feed(B,a,b,r){ GK.hose(B,a,b,r,Math.max(5,GK.n(8))); }
+};
+
 /* ===================== head kit =====================
    The pieces every head is cut from. Having them here rather than inside each
    variant is what makes eight heads read as eight marks of one product instead
@@ -1984,8 +2218,22 @@ function composeTorso(y0,y1,r,rr,R,P,out,lock,d){
    Doing it this way is what keeps eleven skeletons from becoming eleven
    separate socket contracts that the variant library would have to know about. */
 function mechSockets(c,parts,rr,R,P,lock){
-  const {TH,TR,dep,wid,shY,shZ,neckH,armR,armL,foreL,hipH,hipW,driveL,
+  const {TH,TR,dep,shY,shZ,neckH,armR,armL,foreL,hipH,driveL,
          chestY,backY,waistY,prof,auxY,auxZ,leanX}=c;
+  /* ---- two proportions the chassis is not allowed to get wrong ----
+     A torso is taller than it is broad. The chassis numbers were free to make
+     one broader — SLAB and BARREL both could — and a body wider than it is
+     tall reads as a crate no matter how smooth its section is. Cap the peak
+     half-width against standing height and scale the chassis' own `wid` to
+     suit, so a wide build stays wide relative to its siblings but never
+     outgrows its own height.
+     Then set the stance off that width. Hip width used to be a flat number
+     while the torso above it scaled freely, so a broad machine ended up
+     balanced on a narrow girdle, and legs sized to fit between those hips came
+     out as spindles. Legs stand under the body, not under the socket. */
+  const peak=TR*Math.max(prof(0.80),prof(1))*c.wid, capW=TH*0.42;
+  const wid=peak>capW?c.wid*(capW/peak):c.wid;
+  const hipW=Math.max(c.hipW,TR*wid*1.30);
   const torso=composeTorso(0,TH,TR,rr,R,P,parts,lock,{prof,dep,wid});
 
   /* the yoke stubs are chassis, not slot: the shoulder variant plugs into them,
@@ -2393,8 +2641,12 @@ function buildMech(seed,P,lock){
      name pool, so the plate reads back the build. */
   const dc=(chosen.drive&&chosen.drive.cls)||"WALKER";
   const armed=[chosen.fore,chosen.shoulder,chosen.back,chosen.chest,chosen.head]
-    .filter(Boolean).some(c=>/CANNON|RIFLE|GATLING|MISSILE|LAUNCH|TURRET|BEAM/.test(c.n));
-  const heavy=mass>92, light=mass<52;
+    .filter(Boolean).some(c=>/CANNON|RIFLE|GATLING|MISSILE|LAUNCH|TURRET|BEAM|MELTA|PLASMA|FIST|CYCLONE|TWIN/.test(c.n));
+  /* The bands are read off the fleet, not guessed: roughly the top and bottom
+     third of what the yard actually turns out. Capping torso width moved every
+     mass down, and a band left where it was would have called nine machines in
+     ten a scout. */
+  const heavy=mass>47, light=mass<36;
   let role;
   if(dc==="SKIMMER")                          role=ROLES[6];
   else if(!armed&&/DRILL|CLAMP|CLAW|MANIPULATOR/.test(chosen.fore?chosen.fore.n:""))

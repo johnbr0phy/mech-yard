@@ -74,6 +74,37 @@ now, and three rules follow from mecha construction:
    frame and stopping short of both joints so the frame shows through. Cross
    sections are oval: wider than deep on a chest, on a shin, on a plate.
 
+### Weapons
+
+The Dreadnought pattern, which is a different idea about arms from the one this
+started with. Three things make it read:
+
+1. **Both arms are weapons.** A hand is the exception. The arm does not hold a
+   gun — the gun *is* the arm, bolted to a mantlet at the elbow, and the
+   mantlet's round mount plate is the joint you see.
+2. **Twin-linked.** Two bores side by side on one mount is the most recognisable
+   silhouette in the catalogue and costs one extra call.
+3. **The secondary is underslung and the feed is visible** — a storm bolter
+   under the fist, a belt or power cable running back into the body. That is
+   what makes a weapon look plumbed into the machine rather than placed next
+   to it.
+
+Bores come in **patterns, not sizes**, because a las tube and a melta bore are
+different objects rather than the same object scaled: `las` is long, slim and
+ringed with coils; `melta` is stubby and all aperture; `plasma` is a bulbous
+containment bottle necking down to an emitter; `bolter` is a ribbed cooling
+jacket; `solid` is a heavy tube with a muzzle brake.
+
+Fourteen forearms run from a five-finger manipulator to a twin lascannon:
+**MANIPULATOR, THREE-CLAW, CLAMP, AUTOCANNON, BEAM RIFLE, SHIELD ARM, DRILL,
+TWIN LASCANNON, ASSAULT CANNON, POWER FIST, MULTI-MELTA, PLASMA CANNON,
+MISSILE RACK, MISSILE FIST** — and the yoke carries its own: a carapace
+**CYCLONE** cell block, a **TWIN MOUNT** turret, a gatling drum, a missile box.
+
+What a machine ends up carrying is what names it: the role is read off the
+finished build, so a drill and a clamp with no gun on them makes a works rig
+and a pair of cannon makes an assault walker.
+
 Detail elsewhere is a property of the machine rather than of whichever variant
 got the most care: pistons flank every joint, ribbed conduit runs between plates, there is a
 toothed ring at every axis of rotation, and bolt circles and louvre stacks come
