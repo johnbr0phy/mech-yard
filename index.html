@@ -991,9 +991,16 @@ shoulder:[
 {n:"OPEN GIMBAL",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.78,0.9), h=E.y*0.5, d=E.z*0.5;
    B.tube([-mr*0.6,0,0],[w*0.2,0,0],mr*1.05,mr*0.7,{hideA:true});
-   /* no armour at all: a ring, its ram pair, and the loom feeding the arm */
-   for(const s of [-1,1]) B.tube([w*0.2,s*h*0.75,0],[w*0.85,s*h*0.5,0],mr*0.2,mr*0.16,
-     {det:hullDet([0.35,0.7],[],[])});
+   /* No armour at all — but a frame, not two wires. The spine runs the whole
+      length and the rails are braced off it, so an open yoke still reads as
+      structure at any span it is given. */
+   FORM.bone(B,[w*0.1,0,0],[w*0.92,0,0],mr*0.34,{swell:0.1,r1:0.8});
+   for(const s of [-1,1]){
+     B.tube([w*0.2,s*h*0.75,0],[w*0.85,s*h*0.5,0],mr*0.2,mr*0.16,
+       {det:hullDet([0.35,0.7],[],[])});
+     B.tube([w*0.2,s*h*0.75,0],[w*0.55,0,0],mr*0.13,mr*0.11);
+     B.tube([w*0.85,s*h*0.5,0],[w*0.55,0,0],mr*0.13,mr*0.11);
+   }
    GK.gear(B,[w*0.88,0,0],"x",h*0.6,16);
    GK.piston(B,[w*0.24,h*0.6,d*0.55],[w*0.8,h*0.15,d*0.3],mr*0.15);
    GK.piston(B,[w*0.24,-h*0.6,d*0.55],[w*0.8,-h*0.15,d*0.3],mr*0.15);
@@ -2336,7 +2343,10 @@ function mechSockets(c,parts,rr,R,P,lock){
   const stand=(TH+hipH+driveL*0.90+neckH+TR)*1.12;
   for(let pass=0;pass<3;pass++){
     const r0=TR*wid*prof(Math.max(0,Math.min(1,shY/TH)));
-    const span=r0*0.94+Math.max(TR*1.45,Math.min(c.shZ*1.35,r0*2.5)-r0*0.94);
+    /* the same formula the yoke socket actually uses — the two drifted apart
+       once, and a guard estimating a wider machine than it is about to build
+       quietly stops correcting */
+    const span=r0*0.94+Math.max(TR*1.15,Math.min(c.shZ*1.15,r0*1.75)-r0*0.94);
     const aspect=stand/(span*2);
     if(aspect<=1.95)break;
     wid*=Math.min(1.7,aspect/1.95);
@@ -2367,7 +2377,14 @@ function mechSockets(c,parts,rr,R,P,lock){
      yoke library was rewritten to actually use it: the variants were only
      filling half to three quarters of whatever they were given, so widening
      the envelope alone would have changed nothing. */
-  const yokeL=Math.max(TR*1.75,Math.min(c.shZ*1.5,shR*2.9)-shZ);
+  /* How far the pad may reach, and it is not far. Chasing overall width I let
+     this run out to three-odd torso radii, and a yoke is a structure with a
+     root and a business end rather than a solid slab — over a span like that
+     it reads as an arm hung off an outrigger, however honestly the geometry
+     connects. Width belongs in the BODY: pull the reach back in and the aspect
+     guard puts the difference into the torso instead, which is where a
+     broad-shouldered machine carries it anyway. */
+  const yokeL=Math.max(TR*1.15,Math.min(c.shZ*1.15,shR*1.75)-shZ);
   const auxR=TR*wid*prof(Math.max(0,Math.min(1,auxY/TH)));
   const auxZ=auxR*0.96;
   const torso=composeTorso(0,TH,TR,rr,R,P,parts,lock,{prof,dep,wid});
