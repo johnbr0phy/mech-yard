@@ -2320,7 +2320,27 @@ function mechSockets(c,parts,rr,R,P,lock){
      balanced on a narrow girdle, and legs sized to fit between those hips came
      out as spindles. Legs stand under the body, not under the socket. */
   const peak=TR*Math.max(prof(0.80),prof(1))*c.wid, capW=TH*0.46;
-  const wid=peak>capW?c.wid*(capW/peak):c.wid;
+  let wid=peak>capW?c.wid*(capW/peak):c.wid;
+  /* ---- and the guard the cap was only half of ----
+     Capping width against TORSO height stops a body being wider than it is
+     deep, and does nothing about the machine as a whole: a chassis with a short
+     narrow torso on very long legs sails through it and still comes out as a
+     19-metre stick. What matters is the finished silhouette, so measure that —
+     standing height against the span at the shoulders, which is the widest
+     point — and if it is past about two and a half to one, put the difference
+     into the beam. Widening here reaches everything downstream, because the
+     yoke spread, the stance and the girdle are all derived from it. */
+  /* 1.12 because the sum of the chassis numbers is not the machine: a head,
+     a set of feet and a crest all stand on top of it, and measuring against the
+     short figure let the guard pass builds that came out lean */
+  const stand=(TH+hipH+driveL*0.90+neckH+TR)*1.12;
+  for(let pass=0;pass<3;pass++){
+    const r0=TR*wid*prof(Math.max(0,Math.min(1,shY/TH)));
+    const span=r0*0.94+Math.max(TR*1.45,Math.min(c.shZ*1.35,r0*2.5)-r0*0.94);
+    const aspect=stand/(span*2);
+    if(aspect<=1.95)break;
+    wid*=Math.min(1.7,aspect/1.95);
+  }
   const hipW=Math.max(c.hipW,TR*wid*1.30);
   /* And the yoke has to sit ON the shoulder. Capping the torso moved the body
      in without moving the arms, so the yokes stayed where a wider machine would
@@ -2347,7 +2367,7 @@ function mechSockets(c,parts,rr,R,P,lock){
      yoke library was rewritten to actually use it: the variants were only
      filling half to three quarters of whatever they were given, so widening
      the envelope alone would have changed nothing. */
-  const yokeL=Math.max(TR*1.45,Math.min(c.shZ*1.35,shR*2.5)-shZ);
+  const yokeL=Math.max(TR*1.75,Math.min(c.shZ*1.5,shR*2.9)-shZ);
   const auxR=TR*wid*prof(Math.max(0,Math.min(1,auxY/TH)));
   const auxZ=auxR*0.96;
   const torso=composeTorso(0,TH,TR,rr,R,P,parts,lock,{prof,dep,wid});
@@ -2516,9 +2536,12 @@ const TOPO=[
  }},
 {n:"TOWER",axial:false,note:"tall and narrow, long arms, yoke right at the top",
  make(R,rr,P,parts,lock){return mechSockets(base({
-   TH:rr(40,48),TR:rr(8,10),dep:rr(0.9,1.05),wid:rr(0.9,1.05),
-   shY:rr(35,44),shZ:rr(12,15),armL:rr(18,23),foreL:rr(17,22),
-   hipH:rr(7,10),hipW:rr(9,12),driveL:rr(46,58),chestY:rr(26,34),backY:rr(28,36),
+   /* still the tall one, but a torso five diameters high on legs longer than
+      itself was a lamp-post, not a build. Roughly a humanoid's proportions
+      stretched, rather than a different animal. */
+   TH:rr(34,40),TR:rr(10.5,12.5),dep:rr(0.9,1.05),wid:rr(0.95,1.1),
+   shY:rr(29,36),shZ:rr(15,19),armL:rr(17,21),foreL:rr(16,20),
+   hipH:rr(6,9),hipW:rr(11,14),driveL:rr(40,48),chestY:rr(24,30),backY:rr(25,32),
    auxY:rr(30,38),prof:HOUR(rr(0.54,0.62),rr(0.98,1.06),rr(0.78,0.86))
  }),parts,rr,R,P,lock);}},
 {n:"CRADLE",axial:false,note:"torso slung low between the hips — a quadruped's build",

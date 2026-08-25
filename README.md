@@ -43,6 +43,15 @@ sinks by however far the yokes reach up the torso: a chassis carrying its
 shoulders at collar height gets a head down between the pads, one carrying them
 at mid-chest keeps its neck.
 
+Two proportion guards sit over the whole set, because a chassis is free to roll
+numbers that make no sense together. Torso width is capped against torso height,
+so no body is broader than it is tall. And the **finished silhouette** is checked
+against itself — standing height versus the span at the shoulders, which is the
+widest point — because the first guard alone lets a short narrow torso on very
+long legs sail through and still come out a stick. Past about two to one, the
+difference goes into the beam, which reaches everything downstream since the
+yoke spread, the stance and the girdle all derive from it.
+
 **The arms are handed.** Everything else is bilateral and the mirror pass gives
 that away for free, but a mirror can only ever build a machine holding two of
 the same thing — and one close-combat arm beside one ranged arm is not a
