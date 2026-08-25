@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Orbital Yard</title>
+<title>Mech Yard</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -235,15 +235,15 @@ canvas{display:block;width:100%;height:100%}
     <div class="head">
       <button class="menu" id="menu" aria-expanded="false" aria-controls="panel"
               aria-label="Controls"><i></i></button>
-      <button class="cta" id="roll">New ship <kbd>N</kbd></button>
+      <button class="cta" id="roll">New mech <kbd>N</kbd></button>
     </div>
 
     <div class="panel" id="panel">
-    <div class="seedrow"><label for="seed">Hull</label>
-      <input id="seed" inputmode="numeric" aria-label="Hull number"></div>
+    <div class="seedrow"><label for="seed">Frame</label>
+      <input id="seed" inputmode="numeric" aria-label="Frame number"></div>
 
     <div class="brand">
-      <h1>Orbital Yard</h1>
+      <h1>Mech Yard</h1>
       <div class="sub">Slot assembler &middot; general arrangement</div>
     </div>
 
@@ -272,8 +272,8 @@ canvas{display:block;width:100%;height:100%}
       <summary>More controls</summary>
       <div id="slotsMore"></div>
       <div class="group">
-        <div class="ctl"><div class="row"><b>Fuselage</b><span id="vLen"></span></div><input type="range" id="len" min="0" max="100" step="1"></div>
-        <div class="ctl"><div class="row"><b>Fittings</b><span id="vDetail"></span></div><input type="range" id="detail" min="0" max="100" step="1"></div>
+        <div class="ctl"><div class="row"><b>Massing</b><span id="vLen"></span></div><input type="range" id="len" min="0" max="100" step="1"></div>
+        <div class="ctl"><div class="row"><b>Greebling</b><span id="vDetail"></span></div><input type="range" id="detail" min="0" max="100" step="1"></div>
         <div class="ctl"><div class="row"><b>Line weight</b><span id="vLine"></span></div><input type="range" id="line" min="40" max="200" step="5"></div>
       </div>
       <div class="group">
@@ -291,7 +291,7 @@ canvas{display:block;width:100%;height:100%}
     </div>
 
     <div class="social">
-      <a href="https://github.com/johnbr0phy/orbital-yard"
+      <a href="https://github.com/johnbr0phy/mech-yard"
          target="_blank" rel="noopener">Star on GitHub</a>
       <a href="https://x.com/JohnBr0" target="_blank" rel="noopener">Follow @JohnBr0</a>
     </div>
@@ -328,14 +328,29 @@ function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;
   return ((t^t>>>14)>>>0)/4294967296;};}
 
 /* ===================== socket contract =====================
-   Ship space: +X fore, +Y up, +Z starboard. Everything is built on the
-   centreline or to starboard, then mirrored — bilateral symmetry is free.
+   Mech space: +X fore (the way it faces), +Y up, +Z starboard. Everything is
+   built on the centreline or to starboard, then mirrored — bilateral symmetry
+   is free, which is what a mech wants and a ship only tolerated.
    A variant works in its socket's local frame (f = out of the socket, u = up,
    s = side) and obeys three rules:
      1. start at x = -inset          (bury the root; never butt-joint)
      2. cover the socket radius      (no daylight at the joint)
      3. stay inside the envelope box (proportions survive any combination)
-   Buried faces are flagged hidden so no line is stroked inside a neighbour. */
+   Buried faces are flagged hidden so no line is stroked inside a neighbour.
+
+   Eleven sockets are published, and every one of them is a real mechanical
+   parting line on a real machine — the places a mech would actually come apart
+   in a maintenance bay:
+
+     neck    collar ring on the chest deck        head    on top of the neck
+     chest   frontal hardpoint / cockpit hatch    back    dorsal spine plate
+     shldr   shoulder yoke, off the centreline    upper   humerus below the yoke
+     fore    forearm below the elbow              waist   skirt hung off the belt
+     hip     pelvic girdle under the torso        drive   everything below the hip
+     aux     the free greeble socket
+
+   `drive` is solo: leg count is not a mirror of one leg, it is a whole
+   locomotion class, so that variant builds every limb itself. */
 
 function builder(fr,out){
   const L=(x,y,z)=>V.add(fr.o,V.add(V.mul(fr.f,x),V.add(V.mul(fr.u,y),V.mul(fr.s,z))));
@@ -355,240 +370,969 @@ function builder(fr,out){
   };
 }
 
+/* ===================== greeble kit =====================
+   The reference these are cut against is not a clean product render — it is a
+   mechanical-design sheet where armour is a shell and the machine underneath
+   shows through every gap: pistons flanking each joint, ribbed conduit running
+   between plates, a toothed ring at every axis of rotation, bolt circles,
+   louvre stacks. Hand-authoring that per variant would be thousands of lines
+   and no two joints would agree. Instead every variant calls the same kit, so
+   an elbow reads like a knee reads like a waist gimbal, and detail becomes a
+   property of the machine rather than of whichever variant got the most care.
+
+   Everything here is budgeted off P.detail, because HLR cost is linear in
+   parts and a mech carries an order of magnitude more of them than a hull did. */
+const GK={
+  q:0.6,
+  n(x){return Math.max(1,Math.round(x*(0.42+GK.q)));},
+  /* a hydraulic ram: barrel, rod, gland nut, and the clevis at each end. The
+     rod is deliberately thin — it is what makes the joint read as powered
+     rather than as two plates that happen to touch. */
+  piston(B,a,b,r,o){
+    const t=(k)=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+    B.tube(a,t(0.56),r,r*0.94,Object.assign({det:hullDet([0.3,0.72],[],[])},o||{}));
+    B.tube(t(0.52),t(0.62),r*1.16,r*1.16,o||{});
+    B.cap(t(0.6),t(0.97),r*0.42,o||{});
+    B.ball(a,r*0.82,o||{});B.ball(b,r*0.52,o||{});
+  },
+  /* ribbed conduit — a cable loom or a coolant line. Drawn as a bead chain so
+     the hatcher sees a corrugation instead of one long smooth cylinder. */
+  hose(B,a,b,r,seg){
+    const N=Math.max(3,GK.n(seg||6));
+    for(let i=0;i<N;i++){
+      const k0=i/N,k1=(i+0.86)/N;
+      const p=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+      B.cap(p(k0),p(k1),r*(i%2?0.78:1));
+    }
+  },
+  /* the toothed ring at an axis of rotation. Teeth are real boxes, not a
+     texture, so they self-occlude and the ring reads as machined. */
+  gear(B,c,axis,r,teeth){
+    const N=Math.max(6,GK.n(teeth||14));
+    const [au,av]=axis==="x"?[[0,1,0],[0,0,1]]:axis==="y"?[[1,0,0],[0,0,1]]:[[1,0,0],[0,1,0]];
+    const nv=axis==="x"?[1,0,0]:axis==="y"?[0,1,0]:[0,0,1];
+    B.disc(c,nv,r,r*0.52);
+    const th=r*0.13;
+    for(let i=0;i<N;i++){
+      const a2=i/N*Math.PI*2;
+      const p=[c[0]+ (au[0]*Math.cos(a2)+av[0]*Math.sin(a2))*r*0.97,
+               c[1]+ (au[1]*Math.cos(a2)+av[1]*Math.sin(a2))*r*0.97,
+               c[2]+ (au[2]*Math.cos(a2)+av[2]*Math.sin(a2))*r*0.97];
+      B.box(p,axis==="x"?th*0.7:th,axis==="y"?th*0.7:th,axis==="z"?th*0.7:th);
+    }
+  },
+  /* bolt circle round a flange */
+  bolts(B,c,axis,r,n){
+    const N=Math.max(4,GK.n(n||8));
+    const [au,av]=axis==="x"?[[0,1,0],[0,0,1]]:axis==="y"?[[1,0,0],[0,0,1]]:[[1,0,0],[0,1,0]];
+    for(let i=0;i<N;i++){
+      const a2=i/N*Math.PI*2+0.3;
+      B.ball([c[0]+(au[0]*Math.cos(a2)+av[0]*Math.sin(a2))*r,
+              c[1]+(au[1]*Math.cos(a2)+av[1]*Math.sin(a2))*r,
+              c[2]+(au[2]*Math.cos(a2)+av[2]*Math.sin(a2))*r],r*0.11);
+    }
+  },
+  /* louvre stack — a heat exchanger or an intake. Thin boxes on a pitch. */
+  vent(B,c,hx,hy,hz,n,along){
+    const N=Math.max(2,GK.n(n||5));
+    for(let i=0;i<N;i++){
+      const k=(i+0.5)/N-0.5;
+      const o=[c[0],c[1],c[2]];
+      if(along==="y")o[1]+=k*hy*2; else if(along==="z")o[2]+=k*hz*2; else o[0]+=k*hx*2;
+      B.box(o,along==="x"?hx/N*0.6:hx,along==="y"?hy/N*0.6:hy,along==="z"?hz/N*0.6:hz,
+            {det:{ribs:2,line:0.7}});
+    }
+  },
+  /* a field of small blocks — the anonymous machinery that fills the gaps
+     between armour and frame. Seeded off rr so it is stable per mech. */
+  clutter(B,c,hx,hy,hz,rr,n){
+    const N=Math.max(1,GK.n(n||5));
+    for(let i=0;i<N;i++){
+      B.box([c[0]+rr(-hx,hx),c[1]+rr(-hy,hy),c[2]+rr(-hz,hz)],
+            hx*rr(0.16,0.4),hy*rr(0.16,0.4),hz*rr(0.16,0.4),{det:{ribs:2,line:0.8}});
+    }
+  },
+  /* the pair of rams that actually drive a hinge, plus its axle and gear */
+  hinge(B,c,axis,r,rr){
+    GK.gear(B,c,axis,r,12);
+    const d=axis==="z"?[0,0,r*1.15]:axis==="y"?[0,r*1.15,0]:[r*1.15,0,0];
+    B.tube([c[0]-d[0],c[1]-d[1],c[2]-d[2]],[c[0]+d[0],c[1]+d[1],c[2]+d[2]],r*0.34,r*0.34,
+           {det:hullDet([0.3,0.7],[],[])});
+    GK.bolts(B,c,axis,r*0.62,8);
+  },
+  /* a muzzle: barrel, jacket, brake. Shared by every gun in the library so an
+     arm cannon and a shoulder gatling are recognisably the same foundry. */
+  barrel(B,a,b,r,o){
+    const t=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+    B.tube(a,t(0.62),r,r*0.86,Object.assign({det:hullDet([0.24,0.5,0.78],[0.5,2.6,4.2],[])},o||{}));
+    B.tube(t(0.6),t(0.94),r*0.6,r*0.54,o||{});
+    B.tube(t(0.9),b,r*0.72,r*0.66,o||{});
+    B.disc(b,[b[0]-a[0],b[1]-a[1],b[2]-a[2]],r*0.66,r*0.4);
+  }
+};
+
 /* ===================== variant library ===================== */
 const VAR={
-/* ---- cockpit: local x = fore, y = up, z = starboard ---- */
-cockpit:[
- {n:"BUBBLE",crew:2,make(B,sr,rr,R,E){
-   const L=E.x*rr(0.62,0.86), in_=sr*0.7;
-   B.cap([-in_,0,0],[L*0.55,0,0],sr*0.96,{hideA:true,det:hullDet([0.4,0.7],[0.6,3.9],[])});
-   B.tube([L*0.55,0,0],[L,0,0],sr*0.96,sr*0.34);
-   B.cap([L*0.18,sr*0.62,0],[L*0.62,sr*0.5,0],sr*0.44,{det:hullDet([0.35,0.65],[],[])});
-   B.disc([L*0.30,sr*0.95,0],[0,1,0],sr*0.30,sr*0.17);
-   B.tube([L,0,0],[L+E.x*0.10,0,0],0.10,0.05);
+/* ---- neck: local x = up, y = fore, z = starboard ----
+   The collar is the one socket every chassis publishes in the same place, so
+   it is where the machine's build quality is declared: an open gimbal says
+   exposed frame, an armoured collar says sealed. ---- */
+neck:[
+{n:"GIMBAL",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.5,0.72);
+   B.tube([-mr*0.5,0,0],[h*0.34,0,0],mr*1.05,mr*0.62,{hideA:true,det:hullDet([0.5],[],[])});
+   GK.gear(B,[h*0.42,0,0],"x",mr*0.66,12);
+   B.ball([h*0.6,0,0],mr*0.5);
+   GK.piston(B,[h*0.1,mr*0.5,mr*0.34],[h*0.72,mr*0.2,mr*0.24],mr*0.13);
+   GK.hose(B,[h*0.12,-mr*0.5,mr*0.3],[h*0.7,-mr*0.16,mr*0.2],mr*0.09,5);
+   B.tube([h*0.55,0,0],[h,0,0],mr*0.44,mr*0.5);
  }},
- {n:"WEDGE",crew:3,make(B,sr,rr,R,E){
-   const L=E.x*rr(0.7,0.95), in_=sr*0.7;
-   B.tube([-in_,0,0],[L*0.5,0,0],sr,sr*0.82,{hideA:true,det:hullDet([0.35,0.6,0.85],[0.5,2.6,4.2],[])});
-   B.tube([L*0.5,0,0],[L*0.88,-sr*0.16,0],sr*0.82,sr*0.30);
-   B.box([L*0.55,-sr*0.10,0],L*0.14,sr*0.16,sr*0.30);
-   B.box([L*0.34,sr*0.62,0],L*0.20,sr*0.20,sr*0.52,{det:{ribs:3}});
-   B.box([L*0.05,sr*0.55,0],L*0.16,sr*0.22,sr*0.42);
+{n:"COLLAR",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.42,0.6);
+   B.tube([-mr*0.5,0,0],[h*0.7,0,0],mr*1.12,mr*0.78,{hideA:true,det:hullDet([0.35,0.7],[],[])});
+   B.disc([h*0.7,0,0],[1,0,0],mr*0.9,mr*0.5);
+   GK.bolts(B,[h*0.72,0,0],"x",mr*0.74,10);
+   B.tube([h*0.7,0,0],[h,0,0],mr*0.56,mr*0.52);
+   GK.vent(B,[h*0.3,-mr*0.86,0],h*0.2,mr*0.1,mr*0.5,4,"x");
  }},
- {n:"POD",crew:1,make(B,sr,rr,R,E){
-   const in_=sr*0.7, r=sr*rr(1.0,1.22), cx=E.x*0.42;
-   B.tube([-in_,0,0],[cx-r*0.6,0,0],sr*0.9,sr*0.62,{hideA:true});
-   B.ball([cx,0,0],r,{det:hullDet([0.3,0.5,0.7],[],[])});
-   B.disc([cx+r*0.78,0,0],[1,0,0],r*0.52,r*0.30);
-   for(let i=0;i<3;i++) B.disc([cx+r*0.5,r*0.55,r*(i-1)*0.5],[0.5,1,0],r*0.15,r*0.08);
- }},
- {n:"NEEDLE",crew:1,make(B,sr,rr,R,E){
-   const L=E.x*rr(0.85,1.0), in_=sr*0.7;
-   B.tube([-in_,0,0],[L*0.42,0,0],sr,sr*0.55,{hideA:true,det:hullDet([0.3,0.55,0.8],[0.4,3.4],[])});
-   B.tube([L*0.42,0,0],[L*0.9,0,0],sr*0.55,sr*0.10);
-   B.tube([L*0.9,0,0],[L,0,0],0.09,0.045);
-   B.disc([L*0.30,0,0],[1,0,0],sr*0.72,sr*0.55);
-   B.box([L*0.16,sr*0.5,0],L*0.10,sr*0.14,sr*0.30);
- }},
- {n:"BLUNT",crew:4,make(B,sr,rr,R,E){
-   const L=E.x*rr(0.42,0.6), in_=sr*0.7, r=sr*rr(1.0,1.15);
-   B.tube([-in_,0,0],[L*0.75,0,0],sr,r,{hideA:true,det:hullDet([0.4,0.7],[0.5,2.2,3.9,5.4],[])});
-   B.disc([L*0.78,0,0],[1,0,0],r*0.92,r*0.44);
-   B.tube([L*0.78,0,0],[L,0,0],r*0.44,r*0.40);
+{n:"PISTON STACK",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.55,0.8);
+   B.tube([-mr*0.5,0,0],[h*0.22,0,0],mr*1.0,mr*0.5,{hideA:true});
    for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
-     B.disc([L*0.5,Math.cos(a)*r*0.75,Math.sin(a)*r*0.75],[Math.cos(a)*0.4,Math.sin(a),0.0],r*0.16,r*0.09);}
+     GK.piston(B,[h*0.16,Math.cos(a)*mr*0.62,Math.sin(a)*mr*0.62],
+                 [h*0.9,Math.cos(a)*mr*0.34,Math.sin(a)*mr*0.34],mr*0.14);}
+   B.cap([h*0.2,0,0],[h,0,0],mr*0.3);
  }},
- {n:"STEPPED",crew:3,make(B,sr,rr,R,E){
-   const L=E.x*rr(0.7,0.92), in_=sr*0.7;
-   B.tube([-in_,0,0],[L*0.30,0,0],sr,sr*0.86,{hideA:true});
-   B.cap([L*0.30,0,0],[L*0.62,0,0],sr*0.86,{det:hullDet([0.4,0.7],[0.7,3.8],[])});
-   B.tube([L*0.62,0,0],[L*0.72,0,0],sr*0.62,sr*0.55);
-   B.cap([L*0.72,0,0],[L,0,0],sr*0.5,{det:hullDet([0.5],[],[])});
-   B.box([L*0.44,sr*0.72,0],L*0.13,sr*0.16,sr*0.40,{det:{ribs:2}});
-   B.tube([L*0.2,sr*0.9,0],[L*0.2,sr*1.9,0],0.09,0.07);
-   B.disc([L*0.2,sr*1.95,0],[0.3,1,0],sr*0.34,sr*0.06);
+{n:"SUNK",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.2,0.34);
+   B.tube([-mr*0.7,0,0],[h,0,0],mr*1.2,mr*1.0,{hideA:true,det:hullDet([0.4,0.8],[0.6,3.8],[])});
+   GK.gear(B,[h*0.96,0,0],"x",mr*0.86,16);
+   GK.clutter(B,[h*0.4,0,0],h*0.3,mr*0.7,mr*0.7,rr,4);
+ }},
+{n:"YOKE",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.5,0.7);
+   B.tube([-mr*0.5,0,0],[h*0.2,0,0],mr*1.05,mr*0.8,{hideA:true});
+   for(const s of [-1,1]){
+     B.box([h*0.55,0,s*mr*0.72],h*0.42,mr*0.2,mr*0.16,{det:{ribs:3,line:0.75}});
+     GK.hinge(B,[h*0.9,0,s*mr*0.72],"z",mr*0.26,rr);
+   }
+   B.cap([h*0.2,0,0],[h*0.85,0,0],mr*0.34);
  }}
 ],
-/* ---- wing: local x = outboard span, y = up, z = fore ---- */
-wing:[
- {n:"DELTA",make(B,sr,rr,R,E){
-   const sp=E.x*rr(0.88,1.05), cr=E.z*rr(0.52,0.72), ct=cr*rr(0.12,0.24), th=sr*0.42;
-   const sw=cr*rr(0.55,0.75);
-   B.panel([[-sr*0.6,-cr*0.5],[-sr*0.6,cr*0.5],[sp,cr*0.5-sw],[sp,cr*0.5-sw-ct]],th,
-           {det:{ribs:3,line:0.7}});
-   B.cap([sp*0.99,0,cr*0.5-sw-ct*0.5],[sp*1.02,0,cr*0.5-sw],th*0.9);
+/* ---- head: local x = up, y = fore, z = starboard ----
+   A head is small, so it is where line density has to be highest or the mech
+   reads as headless at sheet scale. Every variant carries a sensor with a real
+   aperture, a jaw or chin block, and at least one antenna. ---- */
+head:[
+{n:"VISOR",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.7,0.95), w=E.z*0.5, d=E.y*0.5;
+   B.box([-mr*0.2,0,0],mr*0.5,d*0.5,w*0.6,{hideA:true});
+   B.box([h*0.5,0,0],h*0.42,d*0.86,w*0.86,{det:{ribs:3,line:0.7}});
+   B.box([h*0.46,d*0.9,0],h*0.16,d*0.16,w*0.7,{det:{ribs:5,line:0.8}});
+   B.tube([h*0.46,d*0.98,-w*0.6],[h*0.46,d*0.98,w*0.6],h*0.1,h*0.1,{det:hullDet([0.5],[],[])});
+   B.box([h*0.16,d*0.7,0],h*0.14,d*0.3,w*0.5);
+   GK.vent(B,[h*0.7,-d*0.7,0],h*0.2,d*0.2,w*0.6,4,"x");
+   for(const s of [-1,1]) B.cap([h*0.86,0,s*w*0.8],[h*1.5,-d*0.3,s*w*1.0],h*0.05);
+   GK.bolts(B,[h*0.5,0,w*0.88],"z",h*0.3,6);
  }},
- {n:"TRAPEZOID",make(B,sr,rr,R,E){
-   const sp=E.x*rr(0.8,1.0), cr=E.z*rr(0.62,0.85), ct=cr*rr(0.4,0.6), th=sr*0.4;
-   const sw=cr*rr(0.3,0.55);
-   B.panel([[-sr*0.6,-cr*0.5],[-sr*0.6,cr*0.5],[sp,cr*0.5-sw],[sp,cr*0.5-sw-ct]],th,{det:{ribs:3,line:0.75}});
-   B.cap([sp*0.94,0,cr*0.5-sw+ct*0.15],[sp*0.94,0,cr*0.5-sw-ct*1.1],th*1.5,
-         {det:hullDet([0.35,0.7],[],[])});
+{n:"MONO-EYE",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.62,0.85), w=E.z*0.5;
+   B.tube([-mr*0.2,0,0],[h*0.2,0,0],mr*0.6,w*0.8,{hideA:true});
+   B.cap([h*0.3,0,0],[h*0.78,0,0],w*0.9,{det:hullDet([0.35,0.7],[0.4,3.5],[])});
+   /* the rail the eye tracks along is the whole point of the variant */
+   B.tube([h*0.52,w*0.6,-w*0.95],[h*0.52,w*0.6,w*0.95],w*0.2,w*0.2);
+   B.ball([h*0.52,w*0.78,rr(-w*0.5,w*0.5)],w*0.26);
+   B.disc([h*0.52,w*0.98,0],[0,1,0],w*0.16,w*0.06);
+   B.box([h*0.9,0,0],h*0.1,w*0.5,w*0.5,{det:{ribs:3,line:0.8}});
+   B.cap([h*0.95,-w*0.2,w*0.3],[h*1.6,-w*0.6,w*0.5],h*0.05);
+   GK.hose(B,[h*0.2,-w*0.7,w*0.4],[h*0.7,-w*0.5,w*0.6],w*0.1,4);
  }},
- {n:"STRAIGHT",make(B,sr,rr,R,E){
-   const sp=E.x*rr(0.72,0.95), cr=E.z*rr(0.45,0.62), th=sr*0.36;
-   B.panel([[-sr*0.6,-cr*0.5],[-sr*0.6,cr*0.5],[sp,cr*0.46],[sp,-cr*0.46]],th,{det:{ribs:5,line:0.7}});
-   const px=sp*rr(0.5,0.68);
-   B.box([px,-th*1.6,0],cr*0.12,th*1.5,cr*0.34);
-   B.cap([px,-th*3.2,cr*0.6],[px,-th*3.2,-cr*0.5],sr*0.5,{det:hullDet([0.3,0.6],[],[])});
-   B.tube([px,-th*3.2,-cr*0.5],[px,-th*3.2,-cr*0.95],sr*0.42,sr*0.52,{det:hullDet([0.5],[],[])});
+{n:"TWIN-CAM",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.65,0.9), w=E.z*0.5, d=E.y*0.5;
+   B.box([-mr*0.2,0,0],mr*0.5,d*0.5,w*0.6,{hideA:true});
+   B.box([h*0.46,0,0],h*0.4,d*0.8,w*0.8,{det:{ribs:2,line:0.75}});
+   for(const s of [-1,1]){
+     B.tube([h*0.5,d*0.6,s*w*0.42],[h*0.5,d*1.05,s*w*0.42],w*0.24,w*0.2,
+            {det:hullDet([0.5],[],[])});
+     B.disc([h*0.5,d*1.06,s*w*0.42],[0,1,0],w*0.19,w*0.09);
+   }
+   B.box([h*0.12,d*0.75,0],h*0.12,d*0.25,w*0.42,{det:{ribs:4,line:0.8}});
+   B.cap([h*0.85,0,-w*0.7],[h*1.55,-d*0.2,-w*0.95],h*0.05);
+   GK.vent(B,[h*0.6,-d*0.85,0],h*0.22,d*0.1,w*0.55,5,"x");
  }},
- {n:"DOUBLE DELTA",make(B,sr,rr,R,E){
-   const sp=E.x*rr(0.9,1.05), cr=E.z*rr(0.62,0.82), th=sr*0.4;
-   const k=rr(0.34,0.46), mid=sp*k;
-   B.panel([[-sr*0.6,-cr*0.5],[-sr*0.6,cr*0.5],[mid,cr*0.5-cr*0.42],[mid,-cr*0.5]],th,{det:{ribs:2,line:0.8}});
-   B.panel([[mid*0.98,-cr*0.5],[mid*0.98,cr*0.08],[sp,-cr*0.24],[sp,-cr*0.40]],th,{det:{ribs:3,line:0.8},skipSide:-1});
+{n:"TURRET",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.6,0.82), w=E.z*0.5;
+   GK.gear(B,[0,0,0],"x",w*0.9,14);
+   B.tube([-mr*0.2,0,0],[h*0.7,0,0],w*0.85,w*0.7,{hideA:true,det:hullDet([0.4,0.75],[0.5,3.9],[])});
+   B.disc([h*0.72,0,0],[1,0,0],w*0.72,w*0.3);
+   /* a head that is a weapon mount, not a face */
+   GK.barrel(B,[h*0.4,w*0.2,0],[h*0.4,w*1.9,0],w*0.2);
+   GK.barrel(B,[h*0.62,w*0.2,w*0.4],[h*0.62,w*1.4,w*0.4],w*0.12);
+   GK.bolts(B,[h*0.74,0,0],"x",w*0.55,8);
  }},
- {n:"FORWARD SWEPT",make(B,sr,rr,R,E){
-   const sp=E.x*rr(0.7,0.9), cr=E.z*rr(0.55,0.75), ct=cr*rr(0.5,0.7), th=sr*0.4;
-   const sw=cr*rr(0.35,0.6);
-   B.panel([[-sr*0.6,-cr*0.5],[-sr*0.6,cr*0.5],[sp,cr*0.5+sw],[sp,cr*0.5+sw-ct]],th,{det:{ribs:3,line:0.75}});
-   B.box([sp*0.62,th*1.8,cr*0.1],cr*0.10,th*1.4,cr*0.22);
+{n:"SNOUT",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.55,0.78), w=E.z*0.5, d=E.y*0.5;
+   B.box([-mr*0.2,0,0],mr*0.5,d*0.5,w*0.6,{hideA:true});
+   B.panel([[h*0.14,-w*0.8],[h*0.14,w*0.8],[h*0.8,w*0.5],[h*0.8,-w*0.5]],d*1.5,
+           {det:{ribs:4,line:0.7}});
+   B.box([h*0.3,d*1.0,0],h*0.3,d*0.5,w*0.55,{det:{ribs:3,line:0.75}});
+   B.tube([h*0.3,d*1.4,-w*0.3],[h*0.3,d*1.4,w*0.3],h*0.09,h*0.09);
+   GK.clutter(B,[h*0.55,-d*0.6,0],h*0.2,d*0.3,w*0.5,rr,5);
+   for(const s of [-1,1]) B.cap([h*0.8,0,s*w*0.5],[h*1.4,d*0.2,s*w*0.75],h*0.045);
  }},
- {n:"STUB + NACELLE",make(B,sr,rr,R,E){
-   const sp=E.x*rr(0.34,0.5), cr=E.z*rr(0.42,0.6), th=sr*0.44;
-   B.panel([[-sr*0.6,-cr*0.5],[-sr*0.6,cr*0.5],[sp,cr*0.34],[sp,-cr*0.34]],th,{det:{ribs:2,line:0.7}});
-   const nr=sr*rr(0.7,0.95), nz=cr*0.1;
-   B.cap([sp+nr*0.6,0,nz+cr*0.55],[sp+nr*0.6,0,nz-cr*0.35],nr,{det:hullDet([0.28,0.55,0.8],[0.4,3.6],[])});
-   B.tube([sp+nr*0.6,0,nz-cr*0.35],[sp+nr*0.6,0,nz-cr*0.85],nr*0.8,nr*1.02,{det:hullDet([0.45,0.8],[],[])});
-   B.disc([sp+nr*0.6,0,nz+cr*0.58],[0,0,1],nr*0.8,nr*0.45);
+{n:"CUPOLA",crew:2,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.5,0.7), w=E.z*0.55;
+   B.tube([-mr*0.2,0,0],[h*0.3,0,0],w*0.95,w*0.9,{hideA:true,det:hullDet([0.5],[],[])});
+   B.ball([h*0.62,0,0],w*0.86,{det:hullDet([0.3,0.55,0.8],[],[])});
+   /* glazing reads as a band of longitudinal cuts round the dome */
+   B.tube([h*0.5,0,0],[h*0.78,0,0],w*0.9,w*0.78,{det:hullDet([0.5],[0.3,1.2,2.1,3.0,3.9,4.8],[])});
+   B.disc([h*1.0,0,0],[1,0,0],w*0.42,w*0.14);
+   GK.bolts(B,[h*0.32,0,0],"x",w*0.8,12);
+   B.cap([h*0.9,0,w*0.5],[h*1.5,-w*0.2,w*0.8],h*0.05);
  }}
 ],
-/* ---- tail: local x = up, y = fore, z = starboard ---- */
-tail:[
- {n:"NONE",make(){}},
- {n:"SINGLE FIN",make(B,sr,rr,R,E,probe){
-   const h=E.x*rr(0.7,1.0), cr=E.y*rr(0.7,0.95), ct=cr*rr(0.3,0.5), sw=cr*rr(0.35,0.6);
-   const d=probe(0,0)+sr*0.35;
-   B.panel([[-d,-cr*0.5],[-d,cr*0.5],[h,cr*0.5-sw],[h,cr*0.5-sw-ct]],sr*0.38,{det:{ribs:3,line:0.75}});
+/* ---- chest: local x = fore, y = up, z = starboard ----
+   The frontal hardpoint. On a manned chassis this is the hatch the pilot goes
+   in through, so half the library carries steps, a handle and a hinge line. ---- */
+chest:[
+{n:"HATCH",crew:1,make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.3,0.5), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.42,0,0],d*0.5,h*0.8,w*0.75,{hideA:true,det:{ribs:4,line:0.7}});
+   B.disc([d*0.92,0,0],[1,0,0],h*0.6,h*0.3);
+   GK.bolts(B,[d*0.94,0,0],"x",h*0.68,10);
+   B.tube([d*0.95,h*0.4,-w*0.4],[d*0.95,h*0.4,w*0.4],h*0.07,h*0.07);
+   for(let i=0;i<3;i++) B.box([d*0.5,-h*(0.5+i*0.5),0],d*0.1,h*0.05,w*0.3);
  }},
- {n:"TWIN FIN",make(B,sr,rr,R,E,probe){
-   const h=E.x*rr(0.55,0.8), cr=E.y*rr(0.5,0.75), ct=cr*rr(0.35,0.55), sw=cr*rr(0.3,0.5);
-   const z=Math.min(E.z*0.85,sr*rr(1.1,2.0)), cant=rr(0,0.22);
-   const d=probe(0,z)+sr*0.35;
-   B.panel([[-d,-cr*0.5],[-d,cr*0.5],[h,cr*0.5-sw],[h,cr*0.5-sw-ct]],
-           sr*0.34,{det:{ribs:2,line:0.75},shiftZ:z,cant});
- },twin:true},
- {n:"V-TAIL",make(B,sr,rr,R,E,probe){
-   const h=E.x*rr(0.6,0.85), cr=E.y*rr(0.6,0.85), ct=cr*rr(0.35,0.55), sw=cr*rr(0.3,0.55);
-   const d=probe(0,0)+sr*0.5;
-   B.panel([[-d,-cr*0.5],[-d,cr*0.5],[h,cr*0.5-sw],[h,cr*0.5-sw-ct]],sr*0.34,
-           {det:{ribs:2,line:0.75},cant:rr(0.55,0.85)});
- },twin:true},
- {n:"CRUCIFORM",make(B,sr,rr,R,E,probe){
-   const h=E.x*rr(0.6,0.9), cr=E.y*rr(0.6,0.9), ct=cr*rr(0.35,0.5), sw=cr*rr(0.3,0.5);
-   const d0=probe(0,0)+sr*0.4;
-   B.panel([[-d0,-cr*0.5],[-d0,cr*0.5],[h,cr*0.5-sw],[h,cr*0.5-sw-ct]],sr*0.36,{det:{ribs:3,line:0.75}});
-   const sp=E.z*rr(0.55,0.8), hc=cr*0.62;
-   B.panel([[-d0,-hc*0.5],[-d0,hc*0.5],[sp,hc*0.5-sw*0.6],[sp,hc*0.5-sw*0.6-hc*0.45]],sr*0.3,
-           {det:{ribs:2,line:0.75},cant:Math.PI/2});
+{n:"INTAKE",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.28,0.44), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.4,0,0],d*0.45,h*0.85,w*0.8,{hideA:true,det:{ribs:3,line:0.75}});
+   GK.vent(B,[d*0.85,0,0],d*0.1,h*0.7,w*0.7,7,"y");
+   B.box([d*0.5,h*0.95,0],d*0.4,h*0.12,w*0.5,{det:{ribs:2,line:0.8}});
+   GK.hose(B,[d*0.2,-h*0.8,w*0.6],[d*0.8,-h*0.4,w*0.75],h*0.09,5);
+ }},
+{n:"MISSILE DECK",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.3,0.46), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.45,0,0],d*0.5,h*0.8,w*0.82,{hideA:true,det:{ribs:2,line:0.7}});
+   const nx=GK.n(3), nz=GK.n(3);
+   for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){
+     const y=(i/(nx-1||1)-0.5)*h*1.1, z=(j/(nz-1||1)-0.5)*w*1.2;
+     B.tube([d*0.9,y,z],[d*1.06,y,z],h*0.15,h*0.14,{det:hullDet([0.5],[],[])});
+     B.disc([d*1.07,y,z],[1,0,0],h*0.13,h*0.06);
+   }
+ }},
+{n:"SLAB",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.26,0.42), h=E.y*0.5, w=E.z*0.5;
+   B.panel([[-d*0.1,-w*0.85],[-d*0.1,w*0.85],[d,w*0.6],[d,-w*0.6]],h*1.5,
+           {det:{ribs:4,line:0.7}});
+   B.box([d*0.55,h*0.55,0],d*0.3,h*0.14,w*0.55,{det:{ribs:3,line:0.8}});
+   GK.bolts(B,[d*0.6,0,0],"x",h*0.55,8);
+ }},
+{n:"CAGE",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.3,0.5), h=E.y*0.5, w=E.z*0.5;
+   for(const s of [-1,1]) B.tube([-d*0.05,-h*0.9,s*w*0.8],[d,-h*0.2,s*w*0.55],h*0.1,h*0.08);
+   for(const s of [-1,1]) B.tube([-d*0.05,h*0.9,s*w*0.8],[d,h*0.2,s*w*0.55],h*0.1,h*0.08);
+   B.box([d*0.85,0,0],d*0.14,h*0.35,w*0.6,{det:{ribs:3,line:0.8}});
+   GK.clutter(B,[d*0.45,0,0],d*0.3,h*0.5,w*0.5,rr,6);
+ }},
+{n:"BARE",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.14,0.24), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.5,0,0],d*0.5,h*0.5,w*0.5,{hideA:true,det:{ribs:2,line:0.8}});
+   GK.clutter(B,[d*0.6,0,0],d*0.3,h*0.4,w*0.55,rr,4);
  }}
 ],
-/* ---- booster: local x = aft, y = up, z = starboard ---- */
-booster:[
- {n:"SINGLE",make(B,sr,rr,R,E){
-   const in_=sr*0.7, br=sr*rr(0.9,1.1), bl=E.x*rr(0.55,0.75);
-   B.tube([-in_,0,0],[bl*0.34,0,0],sr,br*0.72,{hideA:true,det:hullDet([0.5],[],[])});
-   B.disc([bl*0.34,0,0],[1,0,0],br*0.72,br*0.42);
-   B.tube([bl*0.34,0,0],[bl,0,0],br*0.44,br,{det:hullDet([0.3,0.58,0.84],[],[])});
-   ring(B,br,bl,sr,rr);
- }},
- {n:"TWIN",make(B,sr,rr,R,E){
-   const in_=sr*0.7, br=sr*rr(0.6,0.78), bl=E.x*rr(0.5,0.7), off=sr*rr(0.85,1.05);
-   B.tube([-in_,0,0],[bl*0.24,0,0],sr,sr*1.02,{hideA:true});
-   for(const s of [1,-1]){
-     B.tube([bl*0.2,s*off,0],[bl*0.42,s*off,0],br*0.66,br*0.46);
-     B.tube([bl*0.42,s*off,0],[bl,s*off,0],br*0.46,br,{det:hullDet([0.32,0.6,0.85],[],[])});
+/* ---- back: local x = aft, y = up, z = starboard ----
+   The backpack is the mech's power and mobility statement. Bigger pack, more
+   thrust or more heat to shed — so the library runs from a bare cover to a
+   dorsal mass that outweighs the torso. ---- */
+back:[
+{n:"THRUSTER RACK",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.55,0.85), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.34,0,0],d*0.4,h*0.8,w*0.8,{hideA:true,det:{ribs:3,line:0.7}});
+   for(const s of [-1,1]){
+     B.tube([d*0.7,h*0.3,s*w*0.5],[d*1.0,h*0.1,s*w*0.55],h*0.34,h*0.44,
+            {det:hullDet([0.3,0.62,0.88],[],[])});
+     B.disc([d*1.01,h*0.1,s*w*0.55],[1,0,0],h*0.42,h*0.2);
+     GK.piston(B,[d*0.4,h*0.6,s*w*0.6],[d*0.92,h*0.3,s*w*0.6],h*0.1);
    }
-   ring(B,br,bl,sr,rr);
+   GK.vent(B,[d*0.5,-h*0.75,0],d*0.28,h*0.12,w*0.6,5,"x");
+   GK.hose(B,[d*0.2,h*0.8,w*0.5],[d*0.8,h*0.45,w*0.65],h*0.09,6);
  }},
- {n:"QUAD",make(B,sr,rr,R,E){
-   const in_=sr*0.7, br=sr*rr(0.42,0.56), bl=E.x*rr(0.45,0.62), off=sr*rr(0.66,0.8);
-   B.tube([-in_,0,0],[bl*0.22,0,0],sr,sr*1.05,{hideA:true});
-   B.disc([bl*0.22,0,0],[1,0,0],sr*1.05,sr*0.5);
-   for(const a of [[1,1],[1,-1],[-1,1],[-1,-1]]){
-     B.tube([bl*0.2,a[0]*off,a[1]*off],[bl*0.4,a[0]*off,a[1]*off],br*0.6,br*0.44);
-     B.tube([bl*0.4,a[0]*off,a[1]*off],[bl,a[0]*off,a[1]*off],br*0.44,br,{det:hullDet([0.35,0.7],[],[])});
+{n:"RADIATOR",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.4,0.6), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.3,0,0],d*0.34,h*0.7,w*0.7,{hideA:true,det:{ribs:2,line:0.75}});
+   const N=GK.n(6);
+   for(let i=0;i<N;i++){
+     const k=(i/(N-1||1)-0.5);
+     B.panel([[d*0.5,-w*0.9],[d*0.5,w*0.9],[d*1.05,w*0.6],[d*1.05,-w*0.6]],h*0.05,
+             {det:{ribs:2,line:0.85},shiftZ:0});
    }
+   /* fins are drawn as a stack of thin boxes so they self-occlude cleanly */
+   GK.vent(B,[d*0.78,0,0],d*0.3,h*0.85,w*0.85,7,"y");
+   GK.hose(B,[d*0.15,h*0.5,-w*0.7],[d*0.7,h*0.7,-w*0.4],h*0.1,5);
  }},
- {n:"RING OF SIX",make(B,sr,rr,R,E){
-   const in_=sr*0.7, br=sr*rr(0.3,0.4), bl=E.x*rr(0.4,0.55), rad=sr*rr(0.72,0.9);
-   B.tube([-in_,0,0],[bl*0.3,0,0],sr,sr*1.08,{hideA:true,det:hullDet([0.6],[],[])});
-   B.tube([bl*0.3,0,0],[bl*0.62,0,0],sr*1.08,sr*0.66);
-   for(let i=0;i<6;i++){
-     const a=i/6*Math.PI*2+0.26, y=Math.cos(a)*rad, z=Math.sin(a)*rad;
-     B.tube([bl*0.3,y,z],[bl*0.5,y,z],br*0.62,br*0.46);
-     B.tube([bl*0.5,y,z],[bl,y,z],br*0.46,br,{det:hullDet([0.4,0.75],[],[])});
+{n:"CANNON PAIR",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.4,0.6), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.35,0,0],d*0.4,h*0.7,w*0.75,{hideA:true,det:{ribs:3,line:0.7}});
+   for(const s of [-1,1]){
+     GK.hinge(B,[d*0.6,h*0.7,s*w*0.55],"z",h*0.2,rr);
+     GK.barrel(B,[d*0.6,h*0.7,s*w*0.55],[-d*0.9,h*1.1,s*w*0.5],h*0.2);
    }
+   GK.clutter(B,[d*0.5,-h*0.4,0],d*0.25,h*0.3,w*0.6,rr,5);
  }},
- {n:"AEROSPIKE",make(B,sr,rr,R,E){
-   const in_=sr*0.7, bl=E.x*rr(0.52,0.7), w=sr*rr(1.0,1.25);
-   B.tube([-in_,0,0],[bl*0.22,0,0],sr,w*0.94,{hideA:true});
-   B.box([bl*0.34,0,0],bl*0.14,w*0.86,w*0.72,{det:{ribs:3}});
-   for(const sgn of [1,-1])
-     B.tube([bl*0.48,sgn*w*0.52,0],[bl*0.98,sgn*w*0.10,0],w*0.34,w*0.12,{hideA:true});
-   B.box([bl*0.50,0,0],bl*0.04,w*0.62,w*0.74);
-   for(let i=0;i<5;i++){const z=(i/4-0.5)*w*1.2;
-     B.tube([bl*0.44,0,z],[bl*0.52,0,z],w*0.09,w*0.12);}
+{n:"DRONE BAY",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.45,0.7), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.42,0,0],d*0.5,h*0.75,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
+   for(const s of [-1,1]){
+     B.panel([[d*0.9,s*w*0.3],[d*0.9,s*w*0.95],[d*0.3,s*w*1.15],[d*0.3,s*w*0.4]],h*0.08,
+             {det:{ribs:3,line:0.8}});
+     B.tube([d*0.55,0,s*w*0.55],[d*0.85,0,s*w*0.55],h*0.16,h*0.14);
+   }
+   GK.bolts(B,[d*0.92,0,0],"x",h*0.5,8);
+ }},
+{n:"TANKS",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.4,0.62), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.28,0,0],d*0.3,h*0.65,w*0.7,{hideA:true});
+   for(const s of [-1,1])
+     B.cap([d*0.45,h*0.45,s*w*0.55],[d*0.95,-h*0.5,s*w*0.6],h*0.34,
+           {det:hullDet([0.28,0.55,0.82],[0.4,3.5],[])});
+   GK.hose(B,[d*0.4,h*0.5,-w*0.55],[d*0.4,h*0.5,w*0.55],h*0.09,7);
+   GK.vent(B,[d*0.75,h*0.8,0],d*0.2,h*0.08,w*0.4,4,"x");
+ }},
+{n:"MAST",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.3,0.45), h=E.y*0.5, w=E.z*0.5;
+   B.box([d*0.3,0,0],d*0.34,h*0.6,w*0.6,{hideA:true,det:{ribs:2,line:0.8}});
+   B.tube([d*0.6,h*0.4,0],[d*0.5,h*2.3,0],h*0.14,h*0.07,{det:hullDet([0.3,0.6,0.85],[],[])});
+   B.disc([d*0.52,h*1.8,0],[0,1,0],h*0.5,h*0.18);
+   B.disc([d*0.5,h*2.3,0],[0,1,0],h*0.26,h*0.1);
+   for(const s of [-1,1]) B.tube([d*0.6,h*0.4,0],[d*0.75,h*1.2,s*w*0.5],h*0.05,h*0.04);
+   GK.clutter(B,[d*0.5,-h*0.3,0],d*0.25,h*0.35,w*0.5,rr,5);
+ }},
+{n:"COVER",make(B,mr,rr,R,E,probe,P){
+   const d=E.x*rr(0.16,0.28), h=E.y*0.5, w=E.z*0.5;
+   B.panel([[0,-w*0.85],[0,w*0.85],[d,w*0.65],[d,-w*0.65]],h*1.6,{det:{ribs:5,line:0.7}});
+   GK.bolts(B,[d*0.6,0,0],"x",h*0.6,10);
+   GK.vent(B,[d*0.8,-h*0.5,0],d*0.14,h*0.2,w*0.55,4,"y");
  }}
 ],
-/* ---- gear: local x = down, y = fore, z = starboard ----
-   A leg's gauge follows its own span. Scaling it from the socket radius alone
-   gave a needle whenever a spread-out foot had to reach a long way up to the
-   hull, which is exactly what an edge-on spade asks for. */
-gear:[
- {n:"STOWED",make(B,sr,rr,R,E,probe){
-   for(const y of [E.y*0.55,-E.y*0.1]){
-     const d=probe(y,0);
-     B.box([-d+sr*0.06,y,0],sr*0.05,E.y*0.14,sr*0.62,{det:{ribs:2}});
+/* ---- shoulder: local x = outboard, y = up, z = fore ----
+   Published off the centreline, so the mirror pass makes the pair and anything
+   hung below it comes along. The yoke has to do two jobs at once: carry the arm
+   and read as a silhouette from the front, which is why every variant caps the
+   outboard face rather than leaving the arm socket showing. ---- */
+shoulder:[
+{n:"PAULDRON",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.55,0.8), h=E.y*0.5, d=E.z*0.5;
+   B.tube([-mr*0.6,0,0],[w*0.3,0,0],mr*1.0,mr*0.9,{hideA:true,det:hullDet([0.5],[],[])});
+   GK.gear(B,[w*0.34,0,0],"x",mr*0.8,14);
+   B.panel([[w*0.3,-d*0.9],[w*0.3,d*0.9],[w*1.05,d*0.6],[w*1.05,-d*0.7]],h*1.5,
+           {det:{ribs:4,line:0.7}});
+   B.box([w*0.7,h*0.8,0],w*0.3,h*0.16,d*0.6,{det:{ribs:3,line:0.8}});
+   GK.piston(B,[w*0.2,h*0.6,d*0.5],[w*0.85,h*0.2,d*0.4],mr*0.16);
+   GK.bolts(B,[w*0.36,0,0],"x",mr*0.66,8);
+ }},
+{n:"BLOCK",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   B.box([w*0.5,0,0],w*0.5,h*0.85,d*0.85,{hideA:true,det:{ribs:3,line:0.7}});
+   B.box([w*1.0,0,0],w*0.12,h*0.6,d*0.6,{det:{ribs:2,line:0.85}});
+   GK.vent(B,[w*0.55,h*0.9,0],w*0.4,h*0.08,d*0.6,5,"x");
+   GK.clutter(B,[w*0.5,-h*0.7,0],w*0.3,h*0.2,d*0.5,rr,4);
+   GK.hinge(B,[w*0.16,0,0],"x",mr*0.7,rr);
+ }},
+{n:"GATLING DRUM",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.6,0.85), h=E.y*0.5, d=E.z*0.5;
+   B.tube([-mr*0.5,0,0],[w*0.35,0,0],mr*1.0,h*0.7,{hideA:true});
+   B.tube([w*0.35,h*0.2,0],[w*0.95,h*0.2,0],h*0.72,h*0.66,
+          {det:hullDet([0.3,0.6,0.85],[0.4,1.6,2.9,4.2,5.5],[])});
+   /* the barrel cluster is what sells it — six real tubes on a pitch circle */
+   for(let i=0;i<6;i++){const a=i/6*Math.PI*2;
+     B.tube([w*0.9,h*0.2+Math.cos(a)*h*0.38,Math.sin(a)*h*0.38],
+            [w*0.9,h*0.2+Math.cos(a)*h*0.38,Math.sin(a)*h*0.38+d*1.3],h*0.11,h*0.1);}
+   B.disc([w*0.96,h*0.2,0],[1,0,0],h*0.6,h*0.24);
+   B.box([w*0.5,-h*0.6,0],w*0.3,h*0.3,d*0.5,{det:{ribs:4,line:0.8}});
+   GK.hose(B,[w*0.2,-h*0.5,-d*0.4],[w*0.75,-h*0.45,-d*0.1],h*0.1,5);
+ }},
+{n:"MISSILE BOX",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.5,0.75), h=E.y*0.5, d=E.z*0.5;
+   B.tube([-mr*0.5,0,0],[w*0.28,0,0],mr*1.0,mr*0.85,{hideA:true});
+   B.box([w*0.62,h*0.35,0],w*0.36,h*0.6,d*0.85,{det:{ribs:2,line:0.7}});
+   const ny=GK.n(3), nz=GK.n(4);
+   for(let i=0;i<ny;i++)for(let j=0;j<nz;j++)
+     B.tube([w*0.62+(i/(ny-1||1)-0.5)*w*0.5,h*0.35+(j/(nz-1||1)-0.5)*h*0.9,d*0.85],
+            [w*0.62+(i/(ny-1||1)-0.5)*w*0.5,h*0.35+(j/(nz-1||1)-0.5)*h*0.9,d*1.02],
+            h*0.13,h*0.12);
+   B.panel([[w*0.26,d*0.9],[w*0.98,d*0.9],[w*0.98,d*0.2],[w*0.26,d*0.2]],h*0.06,
+           {det:{ribs:3,line:0.8},cant:rr(0.3,0.7)});
+   GK.piston(B,[w*0.3,h*0.7,-d*0.3],[w*0.8,h*0.85,-d*0.1],mr*0.13);
+ }},
+{n:"SPIKED CAP",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.45,0.68), h=E.y*0.5;
+   B.tube([-mr*0.5,0,0],[w*0.3,0,0],mr*1.0,h*0.8,{hideA:true});
+   B.ball([w*0.5,0,0],h*0.92,{det:hullDet([0.3,0.55,0.8],[],[])});
+   const N=GK.n(5);
+   for(let i=0;i<N;i++){const a=i/N*Math.PI*2+0.4;
+     B.tube([w*0.55,Math.cos(a)*h*0.5,Math.sin(a)*h*0.5],
+            [w*0.95,Math.cos(a)*h*0.9,Math.sin(a)*h*0.9],h*0.13,h*0.03);}
+   GK.gear(B,[w*0.3,0,0],"x",h*0.68,12);
+ }},
+{n:"OPEN GIMBAL",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.42,0.62), h=E.y*0.5, d=E.z*0.5;
+   B.tube([-mr*0.6,0,0],[w*0.2,0,0],mr*1.05,mr*0.7,{hideA:true});
+   /* no armour at all: a ring, its ram pair, and the loom feeding the arm */
+   for(const s of [-1,1]) B.tube([w*0.2,s*h*0.75,0],[w*0.85,s*h*0.5,0],mr*0.2,mr*0.16,
+     {det:hullDet([0.35,0.7],[],[])});
+   GK.gear(B,[w*0.88,0,0],"x",h*0.6,16);
+   GK.piston(B,[w*0.24,h*0.6,d*0.55],[w*0.8,h*0.15,d*0.3],mr*0.15);
+   GK.piston(B,[w*0.24,-h*0.6,d*0.55],[w*0.8,-h*0.15,d*0.3],mr*0.15);
+   GK.hose(B,[w*0.15,0,-d*0.6],[w*0.85,0,-d*0.25],mr*0.13,7);
+ }},
+{n:"LAUNCH RAIL",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   B.box([w*0.45,0,0],w*0.45,h*0.6,d*0.6,{hideA:true,det:{ribs:3,line:0.75}});
+   B.tube([w*0.6,h*0.75,-d*1.1],[w*0.6,h*0.75,d*1.1],h*0.09,h*0.09);
+   for(let i=0;i<GK.n(3);i++)
+     B.cap([w*0.6,h*0.95,-d*0.9+i*d*0.8],[w*0.6,h*0.95,-d*0.5+i*d*0.8],h*0.16,
+           {det:hullDet([0.4],[],[])});
+   GK.clutter(B,[w*0.5,-h*0.5,0],w*0.3,h*0.25,d*0.5,rr,4);
+ }}
+],
+/* ---- upper: local x = down, y = fore, z = starboard ----
+   The humerus. It hangs off the shoulder and hands the elbow down to the
+   forearm at x = E.x, which is the contract the forearm socket is placed on. ---- */
+upper:[
+{n:"RAMMED",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.8,1.0), r=mr*rr(0.75,0.95);
+   B.tube([-mr*0.5,0,0],[l*0.2,0,0],mr*1.0,r,{hideA:true,det:hullDet([0.5],[],[])});
+   B.cap([l*0.2,0,0],[l*0.82,0,0],r*0.8,{det:hullDet([0.3,0.6,0.85],[0.5,3.8],[])});
+   for(const s of [-1,1]) GK.piston(B,[l*0.16,s*r*0.7,0],[l*0.85,s*r*0.45,0],r*0.2);
+   GK.hose(B,[l*0.2,0,r*0.8],[l*0.8,0,r*0.55],r*0.14,6);
+   GK.hinge(B,[l,0,0],"z",r*0.75,rr);
+ }},
+{n:"SLEEVED",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.82,1.0), r=mr*rr(0.85,1.05);
+   B.tube([-mr*0.5,0,0],[l*0.12,0,0],mr*1.0,r*0.9,{hideA:true});
+   B.box([l*0.5,0,0],l*0.42,r*0.95,r*0.85,{det:{ribs:4,line:0.7}});
+   B.panel([[l*0.12,-r*1.0],[l*0.12,r*1.0],[l*0.88,r*0.7],[l*0.88,-r*0.7]],r*0.12,
+           {det:{ribs:3,line:0.8},cant:Math.PI/2});
+   GK.vent(B,[l*0.55,-r*0.9,0],l*0.3,r*0.1,r*0.6,5,"x");
+   GK.hinge(B,[l,0,0],"z",r*0.7,rr);
+ }},
+{n:"SKELETAL",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.85,1.02), r=mr*rr(0.7,0.9);
+   B.tube([-mr*0.5,0,0],[l*0.14,0,0],mr*1.0,r*0.6,{hideA:true});
+   /* the frame with nothing over it — four longerons and their cross-bracing */
+   for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.5;
+     B.tube([l*0.14,Math.cos(a)*r*0.7,Math.sin(a)*r*0.7],
+            [l*0.9,Math.cos(a)*r*0.5,Math.sin(a)*r*0.5],r*0.15,r*0.12);}
+   for(const k of [0.35,0.62]) B.disc([l*k,0,0],[1,0,0],r*0.66,r*0.4);
+   GK.hose(B,[l*0.16,0,0],[l*0.88,0,0],r*0.2,8);
+   GK.hinge(B,[l,0,0],"z",r*0.72,rr);
+ }},
+{n:"BOXED",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.78,0.96), r=mr*rr(0.9,1.1);
+   B.box([l*0.48,0,0],l*0.48,r*1.0,r*0.9,{hideA:true,det:{ribs:5,line:0.7}});
+   B.box([l*0.5,r*1.05,0],l*0.32,r*0.1,r*0.6,{det:{ribs:3,line:0.8}});
+   GK.bolts(B,[l*0.2,0,0],"x",r*0.8,8);
+   GK.piston(B,[l*0.2,-r*0.9,r*0.5],[l*0.85,-r*0.6,r*0.35],r*0.16);
+   GK.hinge(B,[l,0,0],"z",r*0.72,rr);
+ }},
+{n:"TAPERED",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.82,1.0), r=mr*rr(0.9,1.15);
+   B.tube([-mr*0.5,0,0],[l*0.9,0,0],mr*1.05,r*0.5,
+          {hideA:true,det:hullDet([0.25,0.5,0.75],[0.4,2.2,3.9,5.4],[])});
+   B.disc([l*0.34,0,0],[1,0,0],r*0.95,r*0.6);
+   GK.bolts(B,[l*0.35,0,0],"x",r*0.8,10);
+   GK.hose(B,[l*0.1,-r*0.8,0],[l*0.85,-r*0.4,0],r*0.12,6);
+   GK.hinge(B,[l,0,0],"z",r*0.58,rr);
+ }}
+],
+/* ---- fore: local x = down, y = fore, z = starboard ----
+   Forearm and whatever terminates it. This is the socket that decides whether
+   the mech is a labourer or a gun platform, so the library deliberately spans
+   both — a five-finger manipulator and a 120mm are the same contract. ---- */
+fore:[
+{n:"MANIPULATOR",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.6,0.8), r=mr*rr(0.8,1.0);
+   B.tube([-mr*0.5,0,0],[l*0.62,0,0],mr*1.0,r*0.82,{hideA:true,det:hullDet([0.35,0.7],[],[])});
+   for(const s of [-1,1]) GK.piston(B,[l*0.05,s*r*0.6,0],[l*0.6,s*r*0.4,0],r*0.14);
+   B.box([l*0.78,0,0],l*0.16,r*0.8,r*0.7,{det:{ribs:3,line:0.75}});
+   /* four fingers and a thumb, each two-jointed */
+   for(let i=0;i<4;i++){
+     const z=(i/3-0.5)*r*1.1;
+     B.cap([l*0.92,r*0.1,z],[l*1.16,r*0.35,z],r*0.13);
+     B.cap([l*1.16,r*0.35,z],[l*1.28,r*0.72,z],r*0.1);
+   }
+   B.cap([l*0.86,-r*0.3,r*0.7],[l*1.06,-r*0.1,r*0.95],r*0.14);
+   B.cap([l*1.06,-r*0.1,r*0.95],[l*1.16,r*0.3,r*0.9],r*0.11);
+   GK.hose(B,[l*0.1,0,-r*0.7],[l*0.7,0,-r*0.4],r*0.12,5);
+ }},
+{n:"THREE-CLAW",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.6,0.82), r=mr*rr(0.85,1.05);
+   B.tube([-mr*0.5,0,0],[l*0.55,0,0],mr*1.0,r*0.9,{hideA:true});
+   GK.gear(B,[l*0.6,0,0],"x",r*0.8,12);
+   for(let i=0;i<3;i++){const a=i/3*Math.PI*2+0.5;
+     const c=Math.cos(a)*r*0.7, s2=Math.sin(a)*r*0.7;
+     B.tube([l*0.66,c,s2],[l*1.0,c*1.5,s2*1.5],r*0.19,r*0.14);
+     B.cap([l*1.0,c*1.5,s2*1.5],[l*1.26,c*0.7,s2*0.7],r*0.11);
+     GK.piston(B,[l*0.62,c*0.45,s2*0.45],[l*1.0,c*1.2,s2*1.2],r*0.08);
    }
  }},
- {n:"TRICYCLE",make(B,sr,rr,R,E,probe){
-   const h=E.x*rr(0.6,0.85), wr=h*0.24;
-   /* rake the strut inboard at the top: a foot set wide of a thin hull has
-      nothing above it to root in, and a raked leg is what the real thing does */
-   const leg=(y,z,scale)=>{
-     const zt=z*0.3;
-     const d=probe(y,zt)+sr*0.3, g=gauge(sr,d+h*scale);
-     B.tube([-d,y,zt],[h*scale,y,z],g,g*0.72,{hideA:true});
-     B.tube([h*scale*0.55,y,z],[h*scale,y+h*0.12,z],g*0.5,g*0.43);
-     B.disc([h*scale,y,z+wr*0.42],[0,0,1],wr*scale,wr*0.34);
-     B.disc([h*scale,y,z-wr*0.42],[0,0,1],wr*scale,wr*0.34);
+{n:"CLAMP",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.62,0.85), r=mr*rr(0.9,1.1);
+   B.box([l*0.34,0,0],l*0.36,r*0.9,r*0.85,{hideA:true,det:{ribs:4,line:0.7}});
+   GK.hinge(B,[l*0.72,0,0],"z",r*0.6,rr);
+   for(const s of [-1,1]){
+     B.panel([[l*0.74,s*r*0.2],[l*0.74,s*r*0.85],[l*1.2,s*r*0.55],[l*1.2,s*r*0.12]],r*0.5,
+             {det:{ribs:3,line:0.8}});
+     GK.piston(B,[l*0.5,s*r*0.8,0],[l*0.9,s*r*0.6,0],r*0.13);
+   }
+   GK.hose(B,[l*0.1,r*0.7,0],[l*0.6,r*0.5,0],r*0.11,5);
+ }},
+{n:"AUTOCANNON",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.75,1.0), r=mr*rr(0.85,1.05);
+   B.tube([-mr*0.5,0,0],[l*0.3,0,0],mr*1.0,r*0.95,{hideA:true});
+   B.box([l*0.5,0,0],l*0.28,r*0.85,r*0.75,{det:{ribs:3,line:0.7}});
+   GK.barrel(B,[l*0.5,r*0.1,0],[l*1.55,r*0.1,0],r*0.42);
+   B.box([l*0.55,-r*0.9,0],l*0.2,r*0.3,r*0.5,{det:{ribs:5,line:0.8}});
+   GK.hose(B,[l*0.2,-r*0.7,r*0.5],[l*0.55,-r*0.8,r*0.3],r*0.12,5);
+   GK.bolts(B,[l*0.34,0,0],"x",r*0.7,8);
+ }},
+{n:"BEAM RIFLE",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.7,0.95), r=mr*rr(0.75,0.95);
+   B.tube([-mr*0.5,0,0],[l*0.5,0,0],mr*1.0,r*0.8,{hideA:true,det:hullDet([0.4,0.8],[],[])});
+   B.box([l*0.62,0,0],l*0.14,r*0.6,r*0.55);
+   B.tube([l*0.62,r*0.15,0],[l*1.5,r*0.15,0],r*0.3,r*0.24,
+          {det:hullDet([0.2,0.42,0.64,0.86],[0.4,2.5,4.4],[])});
+   for(const s of [-1,1]) B.panel([[l*0.75,s*r*0.3],[l*1.35,s*r*0.3],[l*1.35,s*r*0.75],[l*0.8,s*r*0.8]],r*0.07,
+     {det:{ribs:3,line:0.85}});
+   B.disc([l*1.5,r*0.15,0],[1,0,0],r*0.28,r*0.12);
+   B.cap([l*0.42,-r*0.55,0],[l*0.72,-r*0.95,0],r*0.14);
+ }},
+{n:"SHIELD ARM",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.6,0.8), r=mr*rr(0.85,1.05);
+   B.tube([-mr*0.5,0,0],[l*0.7,0,0],mr*1.0,r*0.8,{hideA:true});
+   B.panel([[-l*0.35,-r*1.5],[-l*0.35,r*1.5],[l*1.35,r*1.05],[l*1.35,-r*1.05]],r*0.22,
+           {det:{ribs:6,line:0.7}});
+   B.box([l*0.5,r*0.35,0],l*0.7,r*0.12,r*0.4,{det:{ribs:4,line:0.8}});
+   GK.bolts(B,[l*0.5,0,0],"x",r*0.9,8);
+   B.cap([l*0.95,0,-r*1.0],[l*1.3,0,-r*1.35],r*0.1);
+ }},
+{n:"DRILL",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.7,0.95), r=mr*rr(0.9,1.1);
+   B.tube([-mr*0.5,0,0],[l*0.4,0,0],mr*1.0,r*0.95,{hideA:true});
+   GK.gear(B,[l*0.46,0,0],"x",r*1.0,16);
+   B.tube([l*0.46,0,0],[l*1.5,0,0],r*0.85,r*0.06,
+          {det:hullDet([0.16,0.34,0.52,0.7,0.88],[0.3,1.9,3.5,5.1],[])});
+   GK.piston(B,[l*0.14,r*0.8,0],[l*0.5,r*0.6,0],r*0.16);
+   GK.hose(B,[l*0.14,-r*0.8,0],[l*0.5,-r*0.6,0],r*0.13,5);
+ }},
+{n:"MISSILE FIST",make(B,mr,rr,R,E,probe,P){
+   const l=E.x*rr(0.62,0.85), r=mr*rr(0.9,1.15);
+   B.tube([-mr*0.5,0,0],[l*0.45,0,0],mr*1.0,r*0.95,{hideA:true});
+   B.box([l*0.85,0,0],l*0.4,r*1.0,r*0.9,{det:{ribs:3,line:0.7}});
+   const n=GK.n(3);
+   for(let i=0;i<n;i++)for(let j=0;j<n;j++)
+     B.tube([l*1.25,(i/(n-1||1)-0.5)*r*1.4,(j/(n-1||1)-0.5)*r*1.3],
+            [l*1.34,(i/(n-1||1)-0.5)*r*1.4,(j/(n-1||1)-0.5)*r*1.3],r*0.16,r*0.15);
+   GK.piston(B,[l*0.2,r*0.85,0],[l*0.7,r*0.7,0],r*0.15);
+ }}
+],
+/* ---- waist: local x = down, y = fore, z = starboard ----
+   Skirt armour. It hangs, it does not carry, so every variant is plate and
+   hanger — and because it hangs it is the one place a mech is allowed to have
+   a soft silhouette. ---- */
+waist:[
+{n:"FOUR-PLATE",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.6,0.9), w=E.z*0.5, d=E.y*0.5;
+   B.tube([-mr*0.4,0,0],[h*0.2,0,0],mr*1.05,mr*0.95,{hideA:true,det:hullDet([0.5],[],[])});
+   const plate=(fy,fz,sw,sd)=>{
+     B.panel([[h*0.16,-sw],[h*0.16,sw],[h*0.95,sw*0.72],[h*0.95,-sw*0.72]],sd,
+             {det:{ribs:3,line:0.75},shiftZ:fz});
+     B.box([h*0.2,fy,fz],h*0.08,d*0.1,sw*0.5);
    };
-   leg(E.y*0.62,0,0.72);
-   leg(-E.y*0.15,E.z*rr(0.6,0.85),1);
+   plate(d*0.9,0,w*0.55,d*0.5);
+   for(const s of [-1,1]) plate(0,s*w*0.9,w*0.4,d*0.6);
+   B.panel([[h*0.16,-w*0.5],[h*0.16,w*0.5],[h*0.8,w*0.4],[h*0.8,-w*0.4]],d*0.5,
+           {det:{ribs:4,line:0.75},cant:Math.PI/2});
+   GK.bolts(B,[h*0.18,0,0],"x",mr*0.85,10);
  }},
- {n:"SKIDS",make(B,sr,rr,R,E,probe){
-   const h=E.x*rr(0.45,0.65), z=E.z*rr(0.55,0.8);
-   let g=sr*0.13;
-   for(const y of [E.y*0.5,-E.y*0.2]){
-     const d=probe(y,z*0.3)+sr*0.3;
-     g=Math.max(g,gauge(sr,d+h));
-     B.tube([-d,y,z*0.3],[h,y,z],g,g*0.7,{hideA:true});
+{n:"SIDE ONLY",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.55,0.8), w=E.z*0.5, d=E.y*0.5;
+   B.tube([-mr*0.4,0,0],[h*0.25,0,0],mr*1.05,mr*0.9,{hideA:true});
+   for(const s of [-1,1]){
+     B.panel([[h*0.18,s*w*0.7],[h*0.18,s*w*1.15],[h*1.0,s*w*1.0],[h*1.0,s*w*0.62]],d*1.2,
+             {det:{ribs:4,line:0.75}});
+     GK.hinge(B,[h*0.2,0,s*w*0.85],"x",mr*0.24,rr);
+     B.cap([h*0.4,d*0.7,s*w*1.0],[h*0.8,d*0.5,s*w*1.05],d*0.16);
    }
-   B.cap([h,E.y*0.72,z],[h,-E.y*0.5,z],g*1.2);
-   B.tube([h,E.y*0.72,z],[h*0.78,E.y*0.95,z],g*1.05,g*0.75);
+   GK.vent(B,[h*0.5,-d*0.8,0],h*0.25,d*0.08,w*0.5,4,"x");
  }},
- {n:"LEGS",make(B,sr,rr,R,E,probe){
-   const h=E.x*rr(0.7,0.95), sp=E.z*rr(0.7,1.0);
-   for(const y of [E.y*0.55,-E.y*0.35]){
-     const d=probe(y,sp*0.25)+sr*0.3, g=gauge(sr,d+h);
-     B.tube([-d,y,sp*0.25],[h,y,sp],g,g*0.7,{hideA:true});
-     B.tube([h*0.42,y,sp*0.55],[h*0.95,y,sp*0.35],g*0.54,g*0.46);
-     B.disc([h,y,sp],[1,0,0],h*0.20,h*0.09);
+{n:"RING",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.45,0.68), w=E.z*0.5;
+   B.tube([-mr*0.4,0,0],[h*0.85,0,0],mr*1.1,w*1.0,{hideA:true,det:hullDet([0.3,0.6,0.85],[0.4,2.1,3.8,5.3],[])});
+   GK.gear(B,[h*0.2,0,0],"x",mr*1.0,18);
+   B.disc([h*0.88,0,0],[1,0,0],w*0.95,w*0.5);
+   const N=GK.n(8);
+   for(let i=0;i<N;i++){const a=i/N*Math.PI*2;
+     B.box([h*0.55,Math.cos(a)*w*0.95,Math.sin(a)*w*0.95],h*0.28,w*0.08,w*0.14,
+           {det:{ribs:2,line:0.85}});}
+ }},
+{n:"HANGERS",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.6,0.9), w=E.z*0.5, d=E.y*0.5;
+   B.tube([-mr*0.4,0,0],[h*0.22,0,0],mr*1.05,mr*0.85,{hideA:true});
+   const N=GK.n(6);
+   for(let i=0;i<N;i++){const a=i/N*Math.PI*2+0.3;
+     const y=Math.cos(a)*d*0.9, z=Math.sin(a)*w*0.9;
+     B.tube([h*0.2,y*0.6,z*0.6],[h*0.42,y,z],mr*0.11,mr*0.08);
+     B.panel([[h*0.42,-w*0.3],[h*0.42,w*0.3],[h*0.98,w*0.2],[h*0.98,-w*0.2]],d*0.3,
+             {det:{ribs:2,line:0.8},shiftZ:z,cant:a});
    }
+   GK.hose(B,[h*0.25,d*0.7,-w*0.5],[h*0.25,d*0.7,w*0.5],mr*0.1,7);
+ }},
+{n:"BELT",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.3,0.5), w=E.z*0.5, d=E.y*0.5;
+   B.box([h*0.5,0,0],h*0.5,d*0.95,w*0.95,{hideA:true,det:{ribs:5,line:0.7}});
+   GK.vent(B,[h*0.5,d*1.0,0],h*0.32,d*0.06,w*0.6,5,"x");
+   GK.clutter(B,[h*0.55,-d*0.9,0],h*0.3,d*0.15,w*0.7,rr,5);
+   GK.bolts(B,[h*0.15,0,0],"x",mr*0.9,10);
+ }},
+{n:"NONE",make(B,mr,rr,R,E,probe,P){
+   B.tube([-mr*0.4,0,0],[E.x*0.16,0,0],mr*1.02,mr*0.94,{hideA:true,det:hullDet([0.5],[],[])});
+   GK.bolts(B,[E.x*0.14,0,0],"x",mr*0.82,8);
  }}
-]};
-const gauge=(sr,len)=>Math.max(sr*0.13,Math.abs(len)*0.052);
-function ring(B,br,bl,sr,rr){
-  for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.5;
-    B.tube([bl*0.30,Math.cos(a)*sr*0.9,Math.sin(a)*sr*0.9],
-           [bl*0.34,Math.cos(a)*sr*0.9,Math.sin(a)*sr*0.9],sr*0.12,sr*0.15);}
-}
+],
+/* ---- hip: local x = down, y = fore, z = starboard ----
+   The pelvic girdle: the last structural member of the torso and the thing the
+   whole locomotion class bolts to. It publishes nothing itself, but its width
+   is what makes a tank chassis read as a tank and a spider read as a spider,
+   so the library is really a set of stance widths. ---- */
+hip:[
+{n:"BALL GIRDLE",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.5,0.75), w=E.z*0.5;
+   B.tube([-mr*0.4,0,0],[h*0.4,0,0],mr*1.05,mr*0.9,{hideA:true});
+   B.ball([h*0.55,0,0],mr*1.0,{det:hullDet([0.3,0.6,0.85],[],[])});
+   for(const s of [-1,1]){
+     B.tube([h*0.5,0,s*mr*0.6],[h*0.65,0,s*w*1.0],mr*0.44,mr*0.36);
+     B.ball([h*0.68,0,s*w*1.05],mr*0.42);
+     GK.gear(B,[h*0.68,0,s*w*1.05],"z",mr*0.46,12);
+   }
+   GK.piston(B,[h*0.1,mr*0.7,0],[h*0.6,mr*0.4,0],mr*0.16);
+ }},
+{n:"BOX GIRDLE",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.45,0.7), w=E.z*0.5;
+   B.box([h*0.5,0,0],h*0.5,mr*0.9,w*1.0,{hideA:true,det:{ribs:4,line:0.7}});
+   for(const s of [-1,1]) GK.hinge(B,[h*0.8,0,s*w*0.95],"z",mr*0.42,rr);
+   GK.vent(B,[h*0.5,-mr*0.95,0],h*0.32,mr*0.08,w*0.6,5,"x");
+   GK.bolts(B,[h*0.12,0,0],"x",mr*0.85,10);
+ }},
+{n:"WIDE TRUSS",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.5,0.78), w=E.z*0.62;
+   B.tube([-mr*0.4,0,0],[h*0.3,0,0],mr*1.05,mr*0.8,{hideA:true});
+   for(const s of [-1,1]){
+     B.tube([h*0.3,mr*0.5,0],[h*0.85,0,s*w*1.25],mr*0.24,mr*0.2,{det:hullDet([0.4],[],[])});
+     B.tube([h*0.3,-mr*0.5,0],[h*0.85,0,s*w*1.25],mr*0.24,mr*0.2);
+     B.ball([h*0.86,0,s*w*1.28],mr*0.4);
+     GK.gear(B,[h*0.86,0,s*w*1.28],"z",mr*0.44,12);
+   }
+   B.tube([h*0.85,0,-w*1.25],[h*0.85,0,w*1.25],mr*0.2,mr*0.2,{det:hullDet([0.3,0.7],[],[])});
+ }},
+{n:"TURNTABLE",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.4,0.62), w=E.z*0.55;
+   GK.gear(B,[0,0,0],"x",mr*1.15,20);
+   B.tube([-mr*0.3,0,0],[h*0.7,0,0],mr*1.05,w*1.0,{hideA:true,det:hullDet([0.35,0.7],[0.5,3.8],[])});
+   B.disc([h*0.72,0,0],[1,0,0],w*0.95,w*0.45);
+   GK.bolts(B,[h*0.74,0,0],"x",w*0.78,12);
+   for(const s of [-1,1]) B.ball([h*0.75,0,s*w*0.9],mr*0.4);
+ }},
+{n:"EXPOSED",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.5,0.75), w=E.z*0.5;
+   B.tube([-mr*0.4,0,0],[h*0.25,0,0],mr*1.05,mr*0.7,{hideA:true});
+   /* no shell: the pelvis is a ram cage over a spine block */
+   B.box([h*0.55,0,0],h*0.3,mr*0.5,w*0.5,{det:{ribs:3,line:0.8}});
+   for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
+     GK.piston(B,[h*0.2,Math.cos(a)*mr*0.8,Math.sin(a)*w*0.8],
+                 [h*0.8,Math.cos(a)*mr*0.5,Math.sin(a)*w*1.0],mr*0.15);}
+   for(const s of [-1,1]){B.ball([h*0.85,0,s*w*1.0],mr*0.4);GK.gear(B,[h*0.85,0,s*w*1.0],"z",mr*0.44,10);}
+   GK.hose(B,[h*0.2,0,0],[h*0.8,0,0],mr*0.16,7);
+ }}
+],
+/* ---- aux: local x = outboard, y = up, z = fore ----
+   The free socket. It is off the centreline so it mirrors, and it exists
+   because a machine this size would never be clean: something is always
+   strapped to the outside of it. ---- */
+aux:[
+{n:"CABLE LOOM",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.4,0.7), h=E.y*0.5;
+   B.box([w*0.2,0,0],w*0.2,h*0.4,h*0.4,{hideA:true});
+   for(let i=0;i<GK.n(4);i++)
+     GK.hose(B,[w*0.25,h*(0.3-i*0.2),-h*0.3],[w*0.9,h*(0.1-i*0.25),h*0.5],mr*0.16,7);
+   B.box([w*0.92,0,h*0.5],w*0.12,h*0.35,h*0.2,{det:{ribs:3,line:0.8}});
+ }},
+{n:"VENT STACK",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.35,0.6), h=E.y*0.5;
+   B.box([w*0.5,0,0],w*0.5,h*0.7,h*0.6,{hideA:true,det:{ribs:3,line:0.75}});
+   GK.vent(B,[w*0.9,0,0],w*0.14,h*0.6,h*0.5,6,"y");
+   GK.bolts(B,[w*0.15,0,0],"x",h*0.55,6);
+ }},
+{n:"FLOODLIGHTS",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.3,0.55), h=E.y*0.5;
+   B.tube([0,0,0],[w*0.5,h*0.4,0],mr*0.3,mr*0.22,{hideA:true});
+   for(let i=0;i<GK.n(3);i++){
+     const z=(i/2-0.5)*h*0.9;
+     B.tube([w*0.5,h*0.4,z],[w*0.72,h*0.5,z+h*0.4],h*0.2,h*0.24,{det:hullDet([0.5],[],[])});
+     B.disc([w*0.73,h*0.5,z+h*0.42],[0.3,0.2,1],h*0.22,h*0.1);
+   }
+ }},
+{n:"AMMO FEED",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.4,0.65), h=E.y*0.5;
+   B.box([w*0.45,0,0],w*0.45,h*0.6,h*0.5,{hideA:true,det:{ribs:5,line:0.7}});
+   GK.hose(B,[w*0.5,h*0.6,0],[w*0.9,h*1.6,-h*0.3],mr*0.2,8);
+   B.disc([w*0.9,h*1.6,-h*0.3],[0,1,0],h*0.24,h*0.1);
+   GK.clutter(B,[w*0.5,-h*0.5,0],w*0.25,h*0.2,h*0.4,rr,4);
+ }},
+{n:"TOW GEAR",make(B,mr,rr,R,E,probe,P){
+   const w=E.x*rr(0.3,0.5), h=E.y*0.5;
+   B.box([w*0.4,0,0],w*0.4,h*0.5,h*0.45,{hideA:true,det:{ribs:3,line:0.8}});
+   GK.gear(B,[w*0.5,0,0],"z",h*0.5,14);
+   B.tube([w*0.5,0,h*0.5],[w*0.5,0,h*1.3],h*0.09,h*0.07);
+   B.cap([w*0.5,0,h*1.3],[w*0.5,-h*0.4,h*1.5],h*0.1);
+ }},
+{n:"NONE",make(B,mr,rr,R,E,probe,P){
+   B.box([E.x*0.1,0,0],E.x*0.1,E.y*0.16,E.z*0.16,{hideA:true,det:{ribs:2,line:0.85}});
+ }}
+],
+/* ---- drive: local x = down, y = fore, z = starboard ----
+   Everything below the hip, and the one socket that is solo: leg count is not
+   a mirror of one leg, it is a whole locomotion class, so this variant builds
+   every limb itself. Nine classes share one articulation kit, so a spider's
+   third knee is put together the same way as a biped's only knee — which is
+   what stops the library reading as nine unrelated drawings. ---- */
+drive:[
+{n:"BIPED",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x, w=E.z*0.5, r=mr*rr(0.85,1.05);
+   for(const s of [-1,1]) LEG.chain(B,[
+     [0,0,s*w*0.9],[L*0.42,L*0.10,s*w*0.95],[L*0.80,-L*0.04,s*w*0.88],[L*0.93,0,s*w*0.85]
+   ],[r*1.05,r*0.92,r*0.72,r*0.6],rr,{plate:true});
+   for(const s of [-1,1]) LEG.foot(B,[L*0.93,0,s*w*0.85],L*0.14,r,rr,"plate");
+ }},
+{n:"REVERSE-JOINT",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x, w=E.z*0.5, r=mr*rr(0.8,1.0);
+   /* the knee goes the other way and the ankle becomes a third bone — the
+      whole point of a digitigrade leg is that it stands on its toes */
+   for(const s of [-1,1]) LEG.chain(B,[
+     [0,0,s*w*0.9],[L*0.40,-L*0.22,s*w*0.95],[L*0.72,L*0.16,s*w*0.9],[L*0.92,L*0.02,s*w*0.86]
+   ],[r*1.1,r*0.9,r*0.66,r*0.52],rr,{plate:true});
+   for(const s of [-1,1]) LEG.foot(B,[L*0.92,L*0.02,s*w*0.86],L*0.16,r*0.9,rr,"talon");
+ }},
+{n:"QUADRUPED",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x, w=E.z*0.5, r=mr*rr(0.6,0.78);
+   B.box([L*0.1,0,0],L*0.12,E.y*0.45,w*0.9,{hideA:true,det:{ribs:3,line:0.75}});
+   for(const s of [-1,1]) for(const f of [-1,1]){
+     const y0=f*E.y*0.42;
+     LEG.chain(B,[
+       [L*0.08,y0,s*w*0.85],[L*0.42,y0+f*L*0.2,s*w*1.15],
+       [L*0.82,y0+f*L*0.06,s*w*1.05],[L*0.94,y0+f*L*0.02,s*w*1.0]
+     ],[r*1.0,r*0.85,r*0.66,r*0.54],rr,{});
+     LEG.foot(B,[L*0.94,y0+f*L*0.02,s*w*1.0],L*0.1,r*0.85,rr,"pad");
+   }
+ }},
+{n:"SPIDER",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x, w=E.z*0.5, r=mr*rr(0.42,0.58);
+   B.tube([-mr*0.3,0,0],[L*0.16,0,0],mr*1.05,mr*1.15,{hideA:true,det:hullDet([0.4,0.8],[],[])});
+   GK.gear(B,[L*0.18,0,0],"x",mr*1.1,20);
+   /* six legs on a ring, each folding up over the body before it comes down —
+      the raised knee is the whole silhouette of an arachnid walker */
+   for(let i=0;i<6;i++){
+     const a=(i/6)*Math.PI*2+Math.PI/6;
+     const cy=Math.cos(a), cz=Math.sin(a);
+     LEG.chain(B,[
+       [L*0.14,cy*mr*0.9,cz*mr*0.9],
+       [-L*0.12,cy*L*0.5,cz*L*0.5],
+       [L*0.62,cy*L*0.78,cz*L*0.78],
+       [L*0.95,cy*L*0.72,cz*L*0.72]
+     ],[r*1.15,r*0.9,r*0.6,r*0.42],rr,{});
+     LEG.foot(B,[L*0.95,cy*L*0.72,cz*L*0.72],L*0.07,r*0.8,rr,"spike");
+   }
+ }},
+{n:"OCTOPOD",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x, r=mr*rr(0.34,0.48);
+   B.tube([-mr*0.3,0,0],[L*0.2,0,0],mr*1.05,mr*1.25,{hideA:true,det:hullDet([0.35,0.7],[0.5,3.8],[])});
+   B.disc([L*0.22,0,0],[1,0,0],mr*1.2,mr*0.6);
+   GK.bolts(B,[L*0.23,0,0],"x",mr*1.0,16);
+   for(let i=0;i<8;i++){
+     const a=(i/8)*Math.PI*2+Math.PI/8;
+     const cy=Math.cos(a), cz=Math.sin(a);
+     LEG.chain(B,[
+       [L*0.16,cy*mr*1.0,cz*mr*1.0],
+       [-L*0.06,cy*L*0.44,cz*L*0.44],
+       [L*0.58,cy*L*0.68,cz*L*0.68],
+       [L*0.96,cy*L*0.6,cz*L*0.6]
+     ],[r*1.2,r*0.92,r*0.6,r*0.4],rr,{});
+     LEG.foot(B,[L*0.96,cy*L*0.6,cz*L*0.6],L*0.055,r*0.8,rr,"spike");
+   }
+ }},
+{n:"TRIPOD",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x, r=mr*rr(0.72,0.92);
+   B.tube([-mr*0.3,0,0],[L*0.14,0,0],mr*1.05,mr*1.0,{hideA:true});
+   GK.gear(B,[L*0.16,0,0],"x",mr*0.95,16);
+   for(let i=0;i<3;i++){
+     const a=(i/3)*Math.PI*2+Math.PI;
+     const cy=Math.cos(a), cz=Math.sin(a);
+     LEG.chain(B,[
+       [L*0.12,cy*mr*0.7,cz*mr*0.7],
+       [L*0.46,cy*L*0.34,cz*L*0.34],
+       [L*0.86,cy*L*0.46,cz*L*0.46],
+       [L*0.95,cy*L*0.46,cz*L*0.46]
+     ],[r*1.05,r*0.88,r*0.66,r*0.54],rr,{plate:true});
+     LEG.foot(B,[L*0.95,cy*L*0.46,cz*L*0.46],L*0.12,r*0.9,rr,"pad");
+   }
+ }},
+{n:"TRACKED",cls:"TANK",make(B,mr,rr,R,E,probe,P){
+   /* the drive envelope is sized for a leg; running gear that filled it would
+      put the hull three storeys up. A tracked machine gets half the height and
+      spends the rest on wheelbase, which is what makes it read as squat. */
+   const L=E.x*0.46, w=E.z*0.5, len=L*rr(0.95,1.25), r=L*0.42;
+   B.box([L*0.2,0,0],L*0.22,len*0.4,w*0.9,{hideA:true,det:{ribs:4,line:0.7}});
+   for(const s of [-1,1]){
+     const z=s*w*1.05;
+     /* sprocket aft, idler fore, road wheels between, and a real grouser run
+        wrapped round the lot so the track reads as a track from any angle */
+     LEG.wheel(B,[L*0.6,len*0.8,z],r*0.85,w*0.34,rr,"sprocket");
+     LEG.wheel(B,[L*0.6,-len*0.8,z],r*0.75,w*0.34,rr,"idler");
+     const nw=Math.max(3,GK.n(5));
+     for(let i=0;i<nw;i++)
+       LEG.wheel(B,[L*0.72,(-0.55+1.1*i/(nw-1))*len,z],r*0.5,w*0.3,rr,"road");
+     for(let i=0;i<Math.max(2,GK.n(3));i++)
+       LEG.wheel(B,[L*0.3,(-0.4+0.8*i/Math.max(1,GK.n(3)-1))*len,z],r*0.24,w*0.26,rr,"return");
+     LEG.track(B,[L*0.6,0,z],len*0.8,r*0.85,r*0.5,w*0.36,rr);
+     B.panel([[L*0.18,z-w*0.4],[L*0.18,z+w*0.4],[L*0.55,z+w*0.4],[L*0.55,z-w*0.4]],len*1.7,
+             {det:{ribs:5,line:0.75},cant:Math.PI/2});
+     GK.clutter(B,[L*0.3,len*0.5,z],L*0.1,len*0.2,w*0.2,rr,4);
+   }
+ }},
+{n:"WHEELED",cls:"ROLLER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x*0.5, w=E.z*0.5, len=L*rr(1.0,1.35), r=L*0.34;
+   B.box([L*0.26,0,0],L*0.26,len*0.42,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
+   const nb=Math.max(2,GK.n(3));
+   for(const s of [-1,1]) for(let i=0;i<nb;i++){
+     const y=(-0.62+1.24*i/(nb-1||1))*len;
+     /* each wheel is on its own trailing arm with a visible spring — a bogie,
+        not a wheel stuck to a box */
+     B.tube([L*0.3,y,s*w*0.8],[L*0.66,y,s*w*1.05],mr*0.22,mr*0.18,{det:hullDet([0.4],[],[])});
+     GK.piston(B,[L*0.24,y+len*0.1,s*w*0.85],[L*0.62,y,s*w*1.0],mr*0.14);
+     LEG.wheel(B,[L*0.72,y,s*w*1.12],r,w*0.4,rr,"road");
+   }
+   B.tube([L*0.34,-len*0.62,-w*0.8],[L*0.34,-len*0.62,w*0.8],mr*0.16,mr*0.16);
+   GK.vent(B,[L*0.3,len*0.6,0],L*0.14,len*0.06,w*0.5,4,"x");
+ }},
+{n:"HOVER",cls:"SKIMMER",make(B,mr,rr,R,E,probe,P){
+   const L=E.x*0.42, w=E.z*0.6, len=L*rr(1.1,1.5);
+   B.box([L*0.24,0,0],L*0.24,len*0.5,w*0.9,{hideA:true,det:{ribs:3,line:0.7}});
+   /* the skirt is a lathe-free ring of plates so it can be read edge-on */
+   const N=GK.n(10);
+   for(let i=0;i<N;i++){
+     const a=i/N*Math.PI*2;
+     B.box([L*0.62,Math.cos(a)*len*0.85,Math.sin(a)*w*0.95],L*0.3,len*0.1,w*0.1,
+           {det:{ribs:3,line:0.8}});
+   }
+   for(const s of [-1,1]) for(const f of [-1,1]){
+     B.tube([L*0.3,f*len*0.5,s*w*0.55],[L*0.72,f*len*0.5,s*w*0.55],L*0.26,L*0.28,
+            {det:hullDet([0.4,0.8],[],[])});
+     B.disc([L*0.5,f*len*0.5,s*w*0.55],[1,0,0],L*0.24,L*0.05);
+     GK.gear(B,[L*0.44,f*len*0.5,s*w*0.55],"x",L*0.16,10);
+   }
+   GK.vent(B,[L*0.2,-len*0.7,0],L*0.16,len*0.1,w*0.5,5,"x");
+ }}
+],
+};
+/* ===================== articulation kit =====================
+   One chain builder for every walking class. Given the joint polyline it lays
+   tapered bones between the points, puts a real geared hinge at each interior
+   joint with a ram across it, and runs one conduit the whole length — so a
+   spider's third knee and a biped's only knee are the same machine. */
+const LEG={
+  chain(B,pts,rad,rr,o){
+    o=o||{};
+    for(let i=0;i<pts.length-1;i++){
+      const a=pts[i], b=pts[i+1], r1=rad[i], r2=rad[i+1];
+      B.tube(a,b,r1,r2,Object.assign({det:hullDet([0.3,0.62,0.88],[0.5,2.4,4.1],[])},
+             i===0?{hideA:true}:{}));
+      if(i<pts.length-2){
+        /* the ram that drives the NEXT joint is anchored on THIS bone, which is
+           what makes the leg read as powered rather than as a string of cones */
+        const m=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+        GK.piston(B,m(0.28),pts[i+2]?m(0.92):b,r2*0.34);
+      }
+      if(o.plate&&i<2){
+        const m=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+        B.box(m(0.5),Math.abs(b[0]-a[0])*0.4+r1*0.3,r1*0.95,r1*0.75,
+              {det:{ribs:4,line:0.75}});
+      }
+    }
+    for(let i=1;i<pts.length-1;i++){
+      const r=rad[i];
+      GK.gear(B,pts[i],"z",r*1.1,12);
+      B.ball(pts[i],r*0.92,{det:hullDet([0.4,0.75],[],[])});
+      GK.bolts(B,pts[i],"z",r*0.7,8);
+    }
+    GK.hose(B,pts[0],pts[pts.length-1],rad[0]*0.22,Math.max(6,GK.n(9)));
+  },
+  /* four terminations, because what a leg stands on says more about the class
+     than the leg does: a plate foot, a talon, a round pad, a bare spike */
+  foot(B,at,size,r,rr,kind){
+    const [x,y,z]=at;
+    B.ball(at,r*0.7);
+    GK.gear(B,at,"z",r*0.8,10);
+    if(kind==="plate"){
+      B.box([x+size*0.5,y+size*0.35,z],size*0.5,size*1.5,r*1.05,{det:{ribs:4,line:0.7}});
+      B.box([x+size*0.9,y+size*0.3,z],size*0.14,size*1.4,r*1.0,{det:{ribs:6,line:0.85}});
+      for(let i=0;i<3;i++) B.box([x+size*0.72,y+size*(1.2-i*0.9),z],size*0.3,size*0.16,r*0.9);
+      GK.piston(B,[x-size*0.4,y-size*0.5,z],[x+size*0.4,y-size*0.9,z],r*0.2);
+    }else if(kind==="talon"){
+      B.tube([x,y,z],[x+size*0.5,y+size*0.9,z],r*0.8,r*0.5);
+      for(const s of [-1,0,1]){
+        B.cap([x+size*0.5,y+size*0.9,z+s*r*0.6],[x+size*0.95,y+size*1.9,z+s*r*0.85],r*0.24);
+        B.cap([x+size*0.95,y+size*1.9,z+s*r*0.85],[x+size*1.05,y+size*2.3,z+s*r*0.9],r*0.12);
+      }
+      B.cap([x+size*0.3,y-size*0.2,z],[x+size*0.8,y-size*1.1,z],r*0.2);
+    }else if(kind==="pad"){
+      B.tube([x,y,z],[x+size*1.1,y,z],r*0.85,r*1.25,{det:hullDet([0.5],[],[])});
+      B.disc([x+size*1.12,y,z],[1,0,0],r*1.2,r*0.5);
+      GK.bolts(B,[x+size*1.05,y,z],"x",r*0.95,8);
+    }else{
+      B.tube([x,y,z],[x+size*1.6,y+size*0.3,z],r*0.7,r*0.14);
+      B.disc([x+size*0.5,y+size*0.1,z],[1,0,0],r*0.75,r*0.3);
+    }
+  },
+  /* a road wheel, a sprocket, an idler and a return roller are one part with
+     four dressings — hub, rim, and whatever the class needs on the rim */
+  wheel(B,c,r,halfw,rr,kind){
+    const [x,y,z]=c, s=z>=0?1:-1;
+    B.tube([x,y,z-halfw*s],[x,y,z+halfw*s],r,r,
+           {det:hullDet([0.3,0.7],[0.4,2.2,3.9],[])});
+    B.disc([x,y,z+halfw*s*1.01],[0,0,s],r*0.92,r*0.3);
+    GK.bolts(B,[x,y,z+halfw*s*1.05],"z",r*0.55,8);
+    if(kind==="sprocket"){
+      const N=Math.max(8,GK.n(14));
+      for(let i=0;i<N;i++){const a=i/N*Math.PI*2;
+        B.box([x+Math.cos(a)*r*1.02,y+Math.sin(a)*r*1.02,z],r*0.12,r*0.12,halfw*0.55);}
+    }
+  },
+  /* the grouser run: real shoes on the perimeter of the track envelope */
+  track(B,c,half,rf,rr2,halfw,rr){
+    const [x,y,z]=c;
+    const N=Math.max(10,GK.n(22));
+    for(let i=0;i<N;i++){
+      const t=i/N*Math.PI*2;
+      /* a stadium, not a circle — two arcs joined by the top and bottom runs */
+      const yy=Math.cos(t)*half, xx=Math.sin(t)*rf;
+      B.box([x+xx,y+yy,z],rf*0.1,half*0.075,halfw,{det:{ribs:2,line:0.85}});
+    }
+  }
+};
 
-/* Is a point inside a solid? Bounding boxes were lying: a spade hull's box
-   overlaps a landing leg that is nowhere near its curved underside. Every
-   attachment question below is answered against real geometry instead. */
+/* Is a point inside a solid? Bounding boxes were lying: an armour skirt's box
+   overlaps a leg that is nowhere near its curved underside. Every attachment
+   question above is answered against real geometry instead. */
 function inSolid(q,p){
   if(p.k==="sphere") return V.len(V.sub(q,p.c))<=p.r;
   if(p.k==="capsule"||p.k==="tube"){
@@ -642,48 +1386,68 @@ function inSolid(q,p){
   return false;
 }
 
+
+const gauge=(sr,len)=>Math.max(sr*0.13,Math.abs(len)*0.052);
+
 /* ===================== assembler =====================
-   A topology decides how many hull masses there are and how they connect;
-   it publishes the same five sockets wherever they land. Variants never
-   learn which topology they are on, so the whole variant library survives
-   every new skeleton. Paired outriggers cost nothing: put a socket off the
-   centreline and the mirror pass duplicates it and everything plugged in. */
-const BIRDS=[
-"HARRIER","KESTREL","TERN","SHRIKE","AVOCET","CURLEW","GANNET","PETREL","SKUA","MERLIN",
-"GODWIT","PLOVER","EIDER","BRANT","SORA","VEERY","JUNCO","SISKIN","REDPOLL","BITTERN","NODDY",
-"JAEGER","FULMAR","WHIMBREL","DUNLIN","KITTIWAKE","RAZORBILL","LAPWING","OSPREY","PHALAROPE",
-"WILLET","SANDERLING","TATTLER","OVENBIRD","NIGHTJAR","CHUKAR","ACCENTOR","ALBATROSS","ANHINGA",
-"ANTBIRD","ANTPITTA","ANTSHRIKE","ANTWREN","APAPANE","ARACARI","AUKLET","BABBLER","BARBET",
-"BATELEUR","BECARD","BELLBIRD","BLACKCAP","BLUETHROAT","BOBOLINK","BOBWHITE","BRAMBLING",
-"BROADBILL","BUFFLEHEAD","BULBUL","BUNTING","BUSHTIT","BUSTARD","BUZZARD","CACIQUE",
-"CANVASBACK","CARACARA","CARDINAL","CATBIRD","CHACHALACA","CHAFFINCH","CHICKADEE","CHIFFCHAFF",
-"CHOUGH","CISTICOLA","COOT","CORMORANT","CORNCRAKE","COTINGA","COWBIRD","CRAKE","CRANE",
-"CREEPER","CROSSBILL","CUCKOO","CURASSOW","DARTER","DICKCISSEL","DIPPER","DOTTEREL","DOVEKIE",
-"DOWITCHER","DRONGO","DUNNOCK","EAGLE","EGRET","ELAENIA","EUPHONIA","FAIRYWREN","FALCON",
-"FANTAIL","FIELDFARE","FIGBIRD","FINCH","FIRECREST","FLAMINGO","FLICKER","FLYCATCHER",
-"FRANCOLIN","FRIGATEBIRD","FROGMOUTH","GADWALL","GALLINULE","GARGANEY","GNATCATCHER",
-"GOLDCREST","GOLDENEYE","GOLDFINCH","GOSHAWK","GRACKLE","GREBE","GREENSHANK","GROSBEAK",
-"GROUSE","GUILLEMOT","GYRFALCON","HAMERKOP","HAWFINCH","HERMIT","HERON","HOATZIN","HOBBY",
-"HONEYEATER","HONEYGUIDE","HOOPOE","HORNBILL","IBIS","IIWI","JABIRU","JACAMAR","JACANA",
-"JACKDAW","JAY","KAGU","KAKAPO","KEA","KILLDEER","KINGBIRD","KINGFISHER","KINGLET","KISKADEE",
-"KITE","KIWI","KNOT","KOEL","KOKAKO","LAMMERGEIER","LANNER","LARK","LIMPKIN","LINNET",
-"LONGSPUR","LOON","LORIKEET","LYREBIRD","MAGPIE","MALLARD","MALLEEFOWL","MANAKIN","MARTIN",
-"MEADOWLARK","MERGANSER","MESITE","MINIVET","MOCKINGBIRD","MONAL","MOORHEN","MOTMOT",
-"MOUSEBIRD","MURRE","MURRELET","MYNA","NENE","NIGHTHAWK","NUTCRACKER","NUTHATCH","ORIOLE",
-"OROPENDOLA","OUZEL","OYSTERCATCHER","PARAKEET","PARDALOTE","PARROTBILL","PARTRIDGE","PEEWIT",
-"PELICAN","PENGUIN","PEWEE","PHOEBE","PICULET","PIHA","PINTAIL","PIPIT","PITTA","POCHARD",
-"POORWILL","POTOO","PRATINCOLE","PTARMIGAN","PUFFBIRD","PUFFIN","PYRRHULOXIA","QUELEA",
-"QUETZAL","RAIL","RAVEN","REDHEAD","REDSHANK","REDSTART","REDWING","ROADRUNNER","ROBIN",
-"ROLLER","ROOK","ROSEFINCH","RUBYTHROAT","RUFF","SANDPIPER","SAPSUCKER","SCAUP","SCOTER",
-"SCRUBWREN","SEEDEATER","SERIEMA","SERIN","SHEARWATER","SHELDUCK","SHOEBILL","SHOVELER",
-"SIRYSTES","SKIMMER","SKYLARK","SMEW","SNIPE","SOLITAIRE","SPARROW","SPINETAIL","SPOONBILL",
-"STANDARDWING","STARLING","STILT","STINT","STONECHAT","STORK","SUNBIRD","SUNBITTERN","SWALLOW",
-"SWIFT","TANAGER","TAPACULO","TATTLERBIRD","TEAL","THICKKNEE","THORNBILL","THRASHER","THRUSH",
-"TINAMOU","TITMOUSE","TODY","TOUCAN","TOWHEE","TRAGOPAN","TREECREEPER","TROGON","TROPICBIRD",
-"TURACO","TURNSTONE","TWITE","UMBRELLABIRD","VANGA","VEERYBIRD","VERDIN","VIREO","VULTURE",
-"WAGTAIL","WARBLER","WATERTHRUSH","WAXBILL","WAXWING","WEAVER","WHEATEAR","WHINCHAT",
-"WHITETHROAT","WIDGEON","WIGEON","WOODCOCK","WOODLARK","WREN","WRENTIT","WRYNECK","XENOPS",
-"YELLOWHAMMER","YELLOWLEGS","YELLOWTHROAT","ZOSTEROPS"];
+   A chassis decides how the torso is massed and where the girdles land; it
+   publishes the same eleven sockets wherever they end up. Variants never learn
+   which chassis they are on, so the whole library survives every new skeleton.
+   Three of the eleven are *derived* rather than placed: the head sits wherever
+   the neck ended, the humerus wherever the shoulder yoke ended, the forearm
+   wherever the humerus ended. Each is planted at 0.84 of the parent's envelope
+   so the joint is always buried and never gapped — the socket contract's first
+   rule doing double duty as a chain rule. */
+
+/* Designations are pooled by what the machine turned out to be, so the plate
+   reads back the build: something light on legs gets an arthropod, something
+   that ends in a drill and carries no gun gets a yard tool, anything heavy
+   enough to need a siege licence gets a landform. Every pool is the same
+   length on purpose — see the bijection note in buildMech. */
+const POOL={
+ARTHROPOD:["MANTIS","HORNET","WEAVER","LOCUST","SCARAB","WIDOW","TARANTULA","CICADA",
+"WEEVIL","EARWIG","MAYFLY","FIREBRAT","HARVESTMAN","SCORPION","CENTIPEDE","MILLIPEDE",
+"DRAGONFLY","LACEWING","CADDIS","STONEFLY","THRIPS","APHID","CHAFER","LONGHORN",
+"CLICKBEETLE","GLOWWORM","FIREFLY","HOVERFLY","BOTFLY","GADFLY","HORSEFLY","CRANEFLY",
+"MIDGE","GNAT","SAWFLY","ICHNEUMON","HORNTAIL","VELVETANT","MUDDAUBER","POTTERWASP",
+"CARPENTER","LEAFCUTTER","HARVESTER","ARMYWORM","CUTWORM","WIREWORM","MEALWORM","SILKMOTH",
+"HAWKMOTH","LUNA","ATLAS","IOMOTH","PUSSMOTH","TUSSOCK","BAGWORM","CASEBEARER",
+"TRAPDOOR","FUNNELWEB","ORBWEAVER","JUMPINGSPIDER","WOLFSPIDER","CRABSPIDER","WHIPSCORPION","VINEGAROON"],
+LANDFORM:["BASALT","SCARP","TALUS","GABBRO","GNEISS","SCHIST","DOLERITE","ANDESITE",
+"RHYOLITE","PUMICE","OBSIDIAN","FLINT","CHERT","QUARTZITE","MARL","GRIT",
+"MORAINE","DRUMLIN","ESKER","KAME","ARETE","COL","CIRQUE","TARN",
+"CRAG","TOR","BUTTE","MESA","CUESTA","HOGBACK","MONADNOCK","INSELBERG",
+"CALDERA","MAAR","DYKE","SILL","BATHOLITH","LACCOLITH","XENOLITH","MIGMATITE",
+"SHALE","SILTSTONE","GREYWACKE","CONGLOMERATE","BRECCIA","TUFF","IGNIMBRITE","LAHAR",
+"KARST","DOLINE","POLJE","CLINT","GRYKE","SCREE","BOULDER","COBBLE",
+"ANTICLINE","SYNCLINE","NAPPE","KLIPPE","HORST","GRABEN","PLUTON","OROGEN"],
+YARDTOOL:["ANVIL","DERRICK","CAPSTAN","GANTRY","TREPAN","PILEDRIVER","WINCH","JACKLEG",
+"SHACKLE","TURNBUCKLE","COMEALONG","CHAINFALL","DAVIT","SHEERLEG","GINPOLE","TRESTLE",
+"BOLLARD","FAIRLEAD","CLEAT","STANCHION","GUSSET","CORBEL","STRUT","PURLIN",
+"MANDREL","ARBOR","COLLET","CHUCK","REAMER","BROACH","HOBCUTTER","SHAPER",
+"PLANER","SLOTTER","BORER","TAPPER","SWAGE","FULLER","FLATTER","DRIFT",
+"BOLSTER","HARDIE","PRITCHEL","TONGS","QUENCH","TEMPER","BILLET","INGOT",
+"CRUCIBLE","TUYERE","BELLOWS","FORGE","CUPOLA","LADLE","TUNDISH","RUNNER",
+"RISER","SPRUE","FLASK","COPE","DRAG","PATTERN","CORESET","GATE"],
+WEATHER:["SQUALL","MONSOON","HAILSTONE","SIROCCO","MISTRAL","CHINOOK","HABOOB","DERECHO",
+"SUPERCELL","MESOCYCLONE","GUSTFRONT","SHELFCLOUD","WALLCLOUD","FUNNEL","WATERSPOUT","DUSTDEVIL",
+"WILLIWAW","KATABAT","FOEHN","BORA","LEVANTER","TRAMONTANE","HARMATTAN","BRICKFIELDER",
+"SOUTHERLY","NORTHEASTER","GALE","STORMSURGE","SEICHE","GRAUPEL","RIME","HOARFROST",
+"GLAZE","SLEET","VIRGA","MAMMATUS","LENTICULAR","NOCTILUCENT","CIRRUS","STRATUS",
+"CUMULUS","NIMBUS","ALTOCUMULUS","CASTELLANUS","FRACTUS","PILEUS","VELUM","ARCUS",
+"THERMAL","INVERSION","ISOBAR","OCCLUSION","TROUGH","RIDGE","JETSTREAM","VORTEX",
+"ANTICYCLONE","CYCLOGENESIS","ADVECTION","SUBSIDENCE","SHEARLINE","DRYLINE","OUTFLOW","DOWNBURST"]
+};
+const ROLES=[
+ {k:"SCOUT",   pool:"ARTHROPOD",pre:"SCW",kl:"SCOUT WALKER"},
+ {k:"LINE",    pool:"ARTHROPOD",pre:"LNW",kl:"LINE WALKER"},
+ {k:"ASSAULT", pool:"LANDFORM", pre:"ASW",kl:"ASSAULT WALKER"},
+ {k:"SIEGE",   pool:"LANDFORM", pre:"SGP",kl:"SIEGE PLATFORM"},
+ {k:"WORKS",   pool:"YARDTOOL", pre:"IWK",kl:"WORKS RIG"},
+ {k:"SALVAGE", pool:"YARDTOOL", pre:"SVR",kl:"SALVAGE RIG"},
+ {k:"SKIMMER", pool:"WEATHER",  pre:"SKM",kl:"SKIMMER"},
+ {k:"PICKET",  pool:"WEATHER",  pre:"PKT",kl:"PICKET WALKER"}
+];
 
 const CAP=(a,b,r,o)=>Object.assign({k:"capsule",a,b,r},o||{});
 const TUB=(a,b,r1,r2,o)=>Object.assign({k:"tube",a,b,r1,r2},o||{});
@@ -695,721 +1459,361 @@ const PNL=(pts,pts2,n,th,det,o)=>Object.assign({k:"panel",pts,pts2,n,th,skipSide
 const FR=(o,f,u,s,E,solo,sr)=>({fr:{o,f,u,s},E,solo:!!solo,sr});
 const hullDet=(rings,longs,ports)=>({rings,longs,ports});
 
-/* ===================== spine sections =====================
-   A hull is no longer one body. It is a fore section, a joint, and an aft
-   section laid along the same axis. The mating contract is the socket
-   contract again, one level down: every section, however wide it gets in
-   the middle, necks to a circular face of the spine radius at both ends —
-   so any section mates with any other through any joint, and a 1920s ogive
-   can sit in front of a lifting slab without either knowing about it. */
-/* rides a part built along +X onto an arbitrary frame — the joint library is
-   authored along the spine, and this is what lets it also span between hulls */
-function xform(p,o,ex,ey,ez){
-  const Pt=q=>V.add(o,V.add(V.mul(ex,q[0]),V.add(V.mul(ey,q[1]),V.mul(ez,q[2]))));
-  const Dr=q=>V.add(V.mul(ex,q[0]),V.add(V.mul(ey,q[1]),V.mul(ez,q[2])));
-  const q=Object.assign({},p);
-  for(const k of ["c","a","b"]) if(q[k])q[k]=Pt(q[k]);
-  for(const k of ["n","u","v","w","axis"]) if(q[k])q[k]=Dr(q[k]);
-  if(q.pts)q.pts=q.pts.map(Pt);
-  if(q.pts2)q.pts2=q.pts2.map(Pt);
-  return q;
-}
-function xlate(p,d){
-  const q=Object.assign({},p), t=v=>[v[0]+d[0],v[1]+d[1],v[2]+d[2]];
-  for(const k of ["c","a","b"]) if(q[k])q[k]=t(q[k]);
-  if(q.pts)q.pts=q.pts.map(t);
-  if(q.pts2)q.pts2=q.pts2.map(t);
-  return q;
-}
+/* ===================== torso column =====================
+   A torso is not one body. It is a stack of sections laid along the mech's own
+   vertical, joined by real couplings — which is the ship's spine stood on end,
+   and it earns its keep for the same reason: the chest of one machine can be
+   the abdomen of the next, and a two-section torso and a four-section torso
+   are recognisably the same design language at different sizes.
+   All coordinates here are mech-space: x fore, y up, z starboard. */
 const SECT=[
-{n:"BARREL",minL:1.4,make(x0,x1,r,rr,R,P,out){
-  out.push(CAP([x1,0,0],[x0,0,0],r,{hideA:true,hideB:true,
-    det:hullDet([0.2,0.4,0.6,0.8],P.detail>0.3?[0.5,2.1,4.2,5.6]:[0.5,4.2],
-      Array.from({length:Math.round(P.detail*3)},()=>({t:rr(0.2,0.8),th:rr(0,6.28),r:r*rr(0.1,0.2)})))}));
-  return {hz:r,hy:r};
+{n:"DRUM",make(y0,y1,r,rr,out,d){
+  const h=y1-y0;
+  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo,r*d.hi,{det:hullDet([0.3,0.6,0.85],[0.4,2.2,3.9,5.4],[])}));
+  out.push(DSC([0,y0+h*0.5,0],[0,1,0],r*Math.max(d.lo,d.hi)*1.03,r*0.4));
 }},
-{n:"OGIVE",minL:1.9,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, rb=r*rr(1.20,1.55), xm=x0+L*rr(0.42,0.60);
-  out.push(TUB([x1,0,0],[xm,0,0],r,rb,{hideA:true,det:hullDet([0.4,0.75],[0.5,3.9],[])}));
-  out.push(TUB([xm,0,0],[x0,0,0],rb,r,{hideB:true,det:hullDet([0.28,0.56,0.84],[0.5,3.9],[])}));
-  if(P.detail>0.35)for(let i=0;i<3;i++)
-    out.push(DSC([xm-L*0.12*i,0,0],[1,0,0],rb*(1-i*0.07)*1.02,rb*0.5));
-  return {hz:rb,hy:rb};
+{n:"SLAB",make(y0,y1,r,rr,out,d){
+  const h=y1-y0, c=[0,(y0+y1)/2,0];
+  out.push(BOX(c,[r*d.dep,0,0],[0,h*0.5,0],[0,0,r*d.wid],{det:{ribs:5,line:0.7}}));
+  out.push(BOX([r*d.dep*0.9,(y0+y1)/2,0],[r*d.dep*0.16,0,0],[0,h*0.42,0],[0,0,r*d.wid*0.7],
+    {det:{ribs:3,line:0.8}}));
 }},
-{n:"LIFTING SLAB",minL:2.6,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, w=r*rr(2.3,3.4), th=r*rr(0.72,1.0), inn=L*0.16;
-  out.push(TUB([x1,0,0],[x1-inn,0,0],r,r*1.06,{hideA:true}));
-  out.push(TUB([x0,0,0],[x0+inn,0,0],r,r*1.06,{hideB:true}));
-  const zc=r*0.85;
-  out.push(PNL([[x1-inn*0.5,0,zc],[x1-L*rr(0.26,0.38),0,w],[x0+L*rr(0.18,0.30),0,w],
-                [x0+inn*0.5,0,zc],[x0+inn*0.5,0,-zc],[x0+L*0.24,0,-w],
-                [x1-L*0.32,0,-w],[x1-inn*0.5,0,-zc]],null,[0,1,0],th,{ribs:0}));
-  return {hz:w,hy:th*0.5};
+{n:"WEDGE",make(y0,y1,r,rr,out,d){
+  const h=y1-y0;
+  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo*1.1,r*d.hi*0.72,{det:hullDet([0.35,0.7],[0.5,3.0],[])}));
+  out.push(BOX([r*d.dep*0.7,y0+h*0.35,0],[r*d.dep*0.4,0,0],[0,h*0.3,0],[0,0,r*d.wid*0.8],
+    {det:{ribs:4,line:0.75}}));
 }},
-{n:"ARROWHEAD",minL:2.6,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, w=r*rr(2.6,4.0), th=r*rr(0.62,0.9), inn=L*0.14, sw=L*rr(0.45,0.7);
-  out.push(TUB([x1,0,0],[x1-inn,0,0],r,r*1.06,{hideA:true}));
-  out.push(TUB([x0,0,0],[x0+inn,0,0],r,r*1.06,{hideB:true}));
-  out.push(PNL([[x1-inn*0.4,0,r*0.7],[x0+L*0.10,0,w],[x0+inn*0.2,0,w*0.92],
-                [x0+inn*0.2,0,-w*0.92],[x0+L*0.10,0,-w],[x1-inn*0.4,0,-r*0.7]],
-               null,[0,1,0],th,{ribs:0}));
-  if(P.detail>0.3)for(const sgn of [1,-1])
-    out.push(BOX([x0+L*0.26,0,sgn*w*0.62],[L*0.10,0,0],[0,th*0.62,0],[0,0,w*0.10],{det:{ribs:2}}));
-  return {hz:w,hy:th*0.5};
+{n:"BARREL",make(y0,y1,r,rr,out,d){
+  const h=y1-y0, m=(y0+y1)/2;
+  out.push(TUB([0,y0,0],[0,m,0],r*d.lo,r*Math.max(d.lo,d.hi)*1.12,{det:hullDet([0.4,0.8],[],[])}));
+  out.push(TUB([0,m,0],[0,y1,0],r*Math.max(d.lo,d.hi)*1.12,r*d.hi,{det:hullDet([0.3,0.7],[0.4,2.6,4.4],[])}));
+  out.push(DSC([0,m,0],[0,1,0],r*Math.max(d.lo,d.hi)*1.16,r*0.5));
 }},
-{n:"DISC",minL:2.4,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, xm=(x0+x1)*0.5, Rd=r*rr(2.0,2.9), h=Math.min(L*0.42,r*rr(1.0,1.5));
-  out.push(TUB([x1,0,0],[xm+L*0.16,0,0],r,r*1.1,{hideA:true}));
-  out.push(TUB([x0,0,0],[xm-L*0.16,0,0],r,r*1.1,{hideB:true}));
-  out.push(LTH([xm,0,0],[0,1,0],
-    [[-h,Rd*0.44],[-h*0.42,Rd*0.90],[0,Rd],[h*0.42,Rd*0.88],[h,Rd*0.42]],
-    {rings:[1,2,3],mer:Math.round(5+P.detail*4)},{ell:[1,rr(0.82,1.1)]}));
-  return {hz:Rd,hy:h};
+{n:"CAGE",make(y0,y1,r,rr,out,d){
+  const h=y1-y0, N=6;
+  for(let i=0;i<N;i++){const a=i/N*Math.PI*2;
+    out.push(TUB([Math.cos(a)*r*d.lo*d.dep,y0,Math.sin(a)*r*d.lo*d.wid],
+                 [Math.cos(a)*r*d.hi*d.dep,y1,Math.sin(a)*r*d.hi*d.wid],r*0.12,r*0.1));}
+  for(const k of [0.16,0.5,0.84])
+    out.push(DSC([0,y0+h*k,0],[0,1,0],r*(d.lo+(d.hi-d.lo)*k)*0.95,r*0.55));
+  out.push(BOX([0,y0+h*0.5,0],[r*d.dep*0.34,0,0],[0,h*0.3,0],[0,0,r*d.wid*0.34],
+    {det:{ribs:3,line:0.8}}));
 }},
-{n:"TRUSS",minL:3.0,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, w=r*rr(0.62,0.9), bays=Math.max(3,Math.round(L/(r*1.5)));
-  const cor=[[w,w],[w,-w],[-w,-w],[-w,w]];
-  const at=(t,c)=>[x1-L*t,c[0],c[1]];
-  for(const c of cor) out.push(CAP(at(0,c),at(1,c),r*0.16));
-  for(let i=0;i<=bays;i++){
-    const t=i/bays;
-    for(let j=0;j<4;j++) out.push(CAP(at(t,cor[j]),at(t,cor[(j+1)%4]),r*0.12));
-    if(i<bays){const t2=(i+1)/bays;
-      for(let j=0;j<4;j++) out.push(CAP(at(t,cor[j]),at(t2,cor[(j+1)%4]),r*0.09));}
+{n:"FACETED",make(y0,y1,r,rr,out,d){
+  const h=y1-y0, N=8;
+  for(let i=0;i<N;i++){
+    const a0=i/N*Math.PI*2, a1=(i+1)/N*Math.PI*2;
+    out.push(PNL([[Math.cos(a0)*r*d.lo*d.dep,y0,Math.sin(a0)*r*d.lo*d.wid],
+                  [Math.cos(a1)*r*d.lo*d.dep,y0,Math.sin(a1)*r*d.lo*d.wid],
+                  [Math.cos(a1)*r*d.hi*d.dep,y1,Math.sin(a1)*r*d.hi*d.wid],
+                  [Math.cos(a0)*r*d.hi*d.dep,y1,Math.sin(a0)*r*d.hi*d.wid]],null,
+      V.norm([Math.cos((a0+a1)/2),0,Math.sin((a0+a1)/2)]),r*0.09,{ribs:3,line:0.75}));
   }
-  out.push(CAP([x1-L*0.03,w*0.55,w*0.75],[x0+L*0.03,w*0.55,w*0.75],r*0.19));
-  out.push(CAP([x1-L*0.03,-w*0.55,w*0.75],[x0+L*0.03,-w*0.55,w*0.75],r*0.19));
-  out.push(DSC([x1,0,0],[1,0,0],r,r*0.62));
-  out.push(DSC([x0,0,0],[1,0,0],r,r*0.62));
-  return {hz:w*1.5,hy:w*1.5};
 }},
-{n:"FACETED",minL:1.8,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, rb=r*rr(1.15,1.5), inn=L*0.14, fc=R()<0.5?6:8;
-  out.push(TUB([x1,0,0],[x1-inn,0,0],r,rb*0.98,{hideA:true}));
-  out.push(TUB([x0,0,0],[x0+inn,0,0],r,rb*0.98,{hideB:true}));
-  out.push(LTH([(x0+x1)*0.5,0,0],[1,0,0],
-    [[-(L*0.5-inn),rb*rr(0.86,1.0)],[0,rb],[L*0.5-inn,rb*rr(0.86,1.0)]],
-    {rings:[0,1,2],mer:fc,merOff:0},{facets:fc}));
-  return {hz:rb,hy:rb};
-}},
-{n:"SPHERE HAB",minL:3.2,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, xm=(x0+x1)*0.5, Rs=Math.min(L*0.46,r*rr(1.6,2.3));
-  out.push(TUB([x1,0,0],[xm+Rs*0.7,0,0],r,r*1.05,{hideA:true}));
-  out.push(TUB([x0,0,0],[xm-Rs*0.7,0,0],r,r*1.05,{hideB:true}));
-  out.push(SPH([xm,0,0],Rs,{det:{rings:[0.22,0.38,0.5,0.62,0.78]}}));
-  out.push(DSC([xm,0,0],[1,0,0],Rs*1.06,Rs*0.86));
-  if(P.detail>0.35)for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
-    out.push(DSC([xm+Math.cos(a)*Rs*0.2,Math.sin(a)*Rs*0.86,Math.cos(a)*Rs*0.4],
-                 [0,Math.sin(a),Math.cos(a)],Rs*0.18,Rs*0.09));}
-  return {hz:Rs,hy:Rs};
-}},
-{n:"RIB CAGE",minL:3.0,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, Rc=r*rr(1.25,1.7), n=Math.max(4,Math.round(L/(r*1.1)));
-  out.push(CAP([x1,0,0],[x0,0,0],r*rr(0.42,0.58),{hideA:true,hideB:true,
-    det:hullDet([0.3,0.7],[],[])}));
-  for(let i=0;i<=n;i++){
-    const t=i/n, rad=Rc*(0.82+0.18*Math.sin(t*Math.PI));
-    out.push(DSC([x1-L*t,0,0],[1,0,0],rad,rad*0.80));
+{n:"RIBBED",make(y0,y1,r,rr,out,d){
+  const h=y1-y0;
+  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo*0.86,r*d.hi*0.86,{det:hullDet([0.5],[0.4,2.2,3.9],[])}));
+  const N=Math.max(3,Math.round(4*(0.5+GK.q)));
+  for(let i=0;i<N;i++){
+    const k=(i+0.5)/N, rr2=r*(d.lo+(d.hi-d.lo)*k);
+    out.push(DSC([0,y0+h*k,0],[0,1,0],rr2*1.06,rr2*0.6));
+    out.push(TUB([0,y0+h*k-h*0.02,0],[0,y0+h*k+h*0.02,0],rr2*1.02,rr2*1.02));
   }
-  for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.5;
-    out.push(CAP([x1-L*0.02,Math.cos(a)*Rc*0.86,Math.sin(a)*Rc*0.86],
-                 [x0+L*0.02,Math.cos(a)*Rc*0.86,Math.sin(a)*Rc*0.86],r*0.13));}
-  return {hz:Rc,hy:Rc};
 }},
-{n:"TANK RUN",minL:4.2,make(x0,x1,r,rr,R,P,out){
-  const L=x1-x0, n=Math.max(2,Math.min(4,Math.round(L/(r*2.1))));
-  out.push(CAP([x1,0,0],[x0,0,0],r*0.34,{hideA:true,hideB:true}));
-  const tr=Math.min(r*rr(1.15,1.5),L/(n*2.05));
-  for(let i=0;i<n;i++){
-    const cx=x1-L*(i+0.5)/n;
-    out.push(SPH([cx,0,0],tr,{det:{rings:[0.28,0.5,0.72]}}));
-    if(P.detail>0.4)out.push(DSC([cx,0,tr*0.86],[0,0,1],tr*0.22,tr*0.11));
-  }
-  return {hz:tr,hy:tr};
+{n:"TAPERED",make(y0,y1,r,rr,out,d){
+  const h=y1-y0;
+  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo*1.14,r*d.hi*0.66,
+    {det:hullDet([0.22,0.44,0.66,0.88],[0.4,2.0,3.6,5.2],[])}));
+  out.push(BOX([-r*d.dep*0.72,y0+h*0.6,0],[r*d.dep*0.24,0,0],[0,h*0.34,0],[0,0,r*d.wid*0.5],
+    {det:{ribs:4,line:0.8}}));
 }}
 ];
 const JOINT=[
-{n:"FLANGE",make(x0,x1,r,rr,R,P,out,st){
-  const w=r*rr(1.05,1.25);
-  out.push(DSC([x1,0,0],[1,0,0],w,r*0.55));
-  out.push(DSC([x0,0,0],[1,0,0],w,r*0.55));
-  out.push(TUB([x1,0,0],[x0,0,0],r*0.94,r*0.94,{hideA:true,hideB:true,det:hullDet([0.5],[],[])}));
+{n:"RING",make(y,r,rr,out){
+  out.push(TUB([0,y-r*0.14,0],[0,y+r*0.14,0],r*1.06,r*1.06,{det:hullDet([0.5],[],[])}));
+  out.push(DSC([0,y,0],[0,1,0],r*1.12,r*0.6));
+  const N=12;
+  for(let i=0;i<N;i++){const a=i/N*Math.PI*2;
+    out.push(SPH([Math.cos(a)*r*0.92,y,Math.sin(a)*r*0.92],r*0.07));}
 }},
-{n:"COLLAR",make(x0,x1,r,rr,R,P,out,st){
-  const wz=r*rr(0.48,0.66);
-  out.push(TUB([x1,0,0],[x1-(x1-x0)*0.3,0,0],r,wz,{hideA:true}));
-  out.push(CAP([x1-(x1-x0)*0.3,0,0],[x0+(x1-x0)*0.3,0,0],wz,{det:hullDet([0.3,0.7],[],[])}));
-  out.push(TUB([x0+(x1-x0)*0.3,0,0],[x0,0,0],wz,r,{hideB:true}));
-  if(P.detail>0.35)for(let i=0;i<6;i++){const a=i/6*Math.PI*2;
-    out.push(CAP([x1-(x1-x0)*0.28,Math.cos(a)*wz*1.25,Math.sin(a)*wz*1.25],
-                 [x0+(x1-x0)*0.28,Math.cos(a)*wz*1.25,Math.sin(a)*wz*1.25],r*0.07));}
-}},
-{n:"OPEN STRUTS",make(x0,x1,r,rr,R,P,out,st){
-  out.push(DSC([x1,0,0],[1,0,0],r*1.02,r*0.6));
-  out.push(DSC([x0,0,0],[1,0,0],r*1.02,r*0.6));
+{n:"RAMS",make(y,r,rr,out){
+  out.push(TUB([0,y-r*0.3,0],[0,y+r*0.3,0],r*0.5,r*0.5));
   for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
-    out.push(CAP([x1,Math.cos(a)*r*0.78,Math.sin(a)*r*0.78],
-                 [x0,Math.cos(a)*r*0.78,Math.sin(a)*r*0.78],r*0.13));}
-  out.push(CAP([x1,0,0],[x0,0,0],r*0.22));
+    const c=Math.cos(a)*r*0.86, s=Math.sin(a)*r*0.86;
+    out.push(TUB([c,y-r*0.42,s],[c*0.8,y+r*0.1,s*0.8],r*0.15,r*0.14));
+    out.push(CAP([c*0.8,y+r*0.05,s*0.8],[c*0.6,y+r*0.44,s*0.6],r*0.07));
+    out.push(SPH([c,y-r*0.42,s],r*0.11));}
 }},
-{n:"SPREADER",make(x0,x1,r,rr,R,P,out,st){
-  const xm=(x0+x1)*0.5, w=r*rr(1.6,2.3);
-  out.push(TUB([x1,0,0],[xm+(x1-x0)*0.12,0,0],r,r*0.8,{hideA:true}));
-  out.push(TUB([x0,0,0],[xm-(x1-x0)*0.12,0,0],r,r*0.8,{hideB:true}));
-  out.push(BOX([xm,0,0],[(x1-x0)*0.12,0,0],[0,r*0.9,0],[0,0,w],{det:{ribs:3}}));
+{n:"BELLOWS",make(y,r,rr,out){
+  const N=5;
+  for(let i=0;i<N;i++){
+    const t=y-r*0.34+r*0.68*(i+0.5)/N;
+    out.push(TUB([0,t-r*0.05,0],[0,t+r*0.05,0],r*(i%2?0.78:0.96),r*(i%2?0.78:0.96)));
+  }
 }},
-{n:"GIMBAL",make(x0,x1,r,rr,R,P,out,st){
-  const xm=(x0+x1)*0.5;
-  out.push(TUB([x1,0,0],[xm+(x1-x0)*0.16,0,0],r,r*0.66,{hideA:true}));
-  out.push(TUB([x0,0,0],[xm-(x1-x0)*0.16,0,0],r,r*0.66,{hideB:true}));
-  out.push(SPH([xm,0,0],r*rr(0.72,0.88),{det:{rings:[0.3,0.5,0.7]}}));
-  for(const ax of [[0,1,0],[0,0,1]])
-    out.push(DSC([xm,0,0],ax,r*1.02,r*0.88));
+{n:"BALL",make(y,r,rr,out){
+  out.push(SPH([0,y,0],r*0.92,{det:hullDet([0.3,0.6,0.85],[],[])}));
+  out.push(DSC([0,y+r*0.5,0],[0,1,0],r*0.7,r*0.3));
+  out.push(DSC([0,y-r*0.5,0],[0,1,0],r*0.7,r*0.3));
 }},
-/* jogs the axis vertically — the spine stops being a straight line */
-{n:"OFFSET",step:(r,rr,R)=>[0,(R()<0.5?1:-1)*r*rr(1.0,2.1),0],
- make(x0,x1,r,rr,R,P,out,st){
-  const d=(x1-x0)*0.26;
-  out.push(TUB([x1,0,0],[x1-d,0,0],r,r*0.78,{hideA:true}));
-  out.push(TUB([x0,st[1],st[2]],[x0+d,st[1],st[2]],r,r*0.78,{hideB:true}));
-  out.push(CAP([x1-d,0,0],[x0+d,st[1],st[2]],r*0.72,{det:hullDet([0.35,0.65],[],[])}));
-  if(P.detail>0.35)for(const sgn of [1,-1])
-    out.push(CAP([x1-d*0.5,sgn*r*0.6,0],[x0+d*0.5,st[1]+sgn*r*0.6,st[2]],r*0.13));
-}},
-/* splits the spine: the mirror pass turns everything aft of it into a pair */
-{n:"FORK",step:(r,rr,R)=>[0,0,r*rr(1.5,2.6)],
- make(x0,x1,r,rr,R,P,out,st){
-  const d=(x1-x0)*0.3;
-  out.push(TUB([x1,0,0],[x1-d,0,0],r,r*0.9,{hideA:true}));
-  out.push(BOX([x1-d*1.2,0,0],[d*0.3,0,0],[0,r*0.8,0],[0,0,st[2]*0.9],{det:{ribs:2}}));
-  out.push(TUB([x0,st[1],st[2]],[x0+d,st[1],st[2]],r,r*0.8,{hideB:true}));
-  out.push(CAP([x1-d*1.3,st[1]*0.4,st[2]*0.45],[x0+d,st[1],st[2]],r*0.62));
+{n:"TRUSS",make(y,r,rr,out){
+  for(let i=0;i<6;i++){const a=i/6*Math.PI*2, b=(i+1)/6*Math.PI*2;
+    out.push(TUB([Math.cos(a)*r*0.9,y-r*0.4,Math.sin(a)*r*0.9],
+                 [Math.cos(b)*r*0.9,y+r*0.4,Math.sin(b)*r*0.9],r*0.09,r*0.09));}
+  out.push(DSC([0,y-r*0.4,0],[0,1,0],r*0.98,r*0.55));
+  out.push(DSC([0,y+r*0.4,0],[0,1,0],r*0.98,r*0.55));
 }}
 ];
-function composeSpine(xTail,xNose,r,rr,R,P,out,lock,opts){
-  opts=opts||{};
-  const pickI=(k,n)=>(lock&&lock[k]!=null)?Math.min(lock[k],n-1):Math.floor(R()*n);
-  const nSec=(lock&&lock.nsec!=null)?2+Math.min(lock.nsec,2)
-            :(R()<0.4?2:R()<0.75?3:4);
-  const idx=[];
-  for(let i=0;i<nSec;i++)
-    idx.push(i===0?pickI("fore",SECT.length)
-      :i===nSec-1?pickI("aft",SECT.length):Math.floor(R()*SECT.length));
-
-  /* a radial ship has to stay a surface of revolution, so stepping joints are out */
-  const jOK=[];
-  for(let i=0;i<JOINT.length;i++) if(!opts.noStep||!JOINT[i].step) jOK.push(i);
-  const jIdx=[];
-  for(let i=0;i<nSec-1;i++){
-    let ji=pickI("joint",JOINT.length);
-    if(jOK.indexOf(ji)<0) ji=jOK[Math.floor(R()*jOK.length)];
-    jIdx.push(ji);
-  }
-
-  const jl=Math.max(r*0.95,Math.min((xNose-xTail)*0.13,r*rr(1.0,1.8)));
-  const mins=idx.map(i=>(SECT[i].minL||1.4)*r);
-  const minSum=mins.reduce((a,b)=>a+b,0);
-  const need=minSum+jl*(nSec-1);
-  /* the hull lengthens rather than letting a section shrink below its minimum */
-  let total=Math.max(xNose-xTail,need);
-  xTail=xNose-total;
-  const surplus=total-jl*(nSec-1)-minSum;
-  const w=idx.map(()=>rr(0.7,1.3)), wsum=w.reduce((a,b)=>a+b,0);
-  const lens=mins.map((m,k)=>m+surplus*w[k]/wsum);
-
-  let x=xNose, off=[0,0,0];
-  const secs=[],joints=[];
+/* Stacks 2–4 sections between y0 and y1 and returns what it chose, so the
+   sheet can print the recipe and the advanced rail can lock any of it. */
+function composeTorso(y0,y1,r,rr,R,P,out,lock,d){
+  const nI=(lock&&lock.nsec!=null)?Math.min(lock.nsec,2):Math.floor(R()*3);
+  const nSec=nI+2;
+  const fI=(lock&&lock.tlo!=null)?Math.min(lock.tlo,SECT.length-1):Math.floor(R()*SECT.length);
+  const aI=(lock&&lock.thi!=null)?Math.min(lock.thi,SECT.length-1):Math.floor(R()*SECT.length);
+  const jI=(lock&&lock.joint!=null)?Math.min(lock.joint,JOINT.length-1):Math.floor(R()*JOINT.length);
+  const secs=[];
+  for(let i=0;i<nSec;i++) secs.push(i===0?SECT[fI]:i===nSec-1?SECT[aI]:SECT[(fI+i)%SECT.length]);
+  const H=y1-y0;
   for(let i=0;i<nSec;i++){
-    const x1=x, x0=x-lens[i];
-    const si=idx[i], tmp=[];
-    const info=SECT[si].make(x0,x1,r,rr,R,P,tmp);
-    /* a structural core runs the whole section: the hull can never read as severed */
-    tmp.push(CAP([x1,0,0],[x0,0,0],r*0.30,{hideA:true,hideB:true}));
-    for(const q of tmp)out.push(xlate(q,off));
-    secs.push({i:si,n:SECT[si].n,x0,x1,off:off.slice(),info});
-    x=x0;
-    if(i<nSec-1){
-      const ji=jIdx[i], J=JOINT[ji];
-      const step=J.step?J.step(r,rr,R):[0,0,0];
-      const tmp2=[];
-      J.make(x-jl,x,r,rr,R,P,tmp2,step);
-      tmp2.push(CAP([x,0,0],[x-jl,step[1],step[2]],r*0.26,{hideA:true,hideB:true}));
-      for(const q of tmp2)out.push(xlate(q,off));
-      joints.push({i:ji,n:J.n});
-      off=[off[0],off[1]+step[1],off[2]+step[2]];
-      x-=jl;
-    }
+    const a=y0+H*i/nSec, b=y0+H*(i+1)/nSec;
+    const lo=d.prof(i/nSec), hi=d.prof((i+1)/nSec);
+    secs[i].make(a,b,r,rr,out,{lo,hi,dep:d.dep,wid:d.wid});
+    if(i<nSec-1) JOINT[jI].make(b,r*d.prof((i+1)/nSec)*0.96,rr,out);
   }
-  let wide=secs[0];
-  for(const sc of secs) if(sc.info.hz>wide.info.hz) wide=sc;
-  const last=secs[secs.length-1];
-  return {
-    fore:secs[0],aft:last,joint:joints[0]||{i:0,n:"—"},
-    secs,joints,nSec,endOff:off,xTail,
-    jx:(secs[0].x0+(secs[1]?secs[1].x1:secs[0].x0))*0.5,
-    wingX:(wide.x0+wide.x1)*0.5, wingY:wide.off[1]-wide.info.hy*0.3,
-    wingZ:wide.off[2]+wide.info.hz*0.92,
-    tailX:last.x0+(last.x1-last.x0)*rr(0.18,0.4), tailY:last.off[1]+last.info.hy*0.86,
-    gearX:last.x0+(last.x1-last.x0)*0.55, gearY:last.off[1]-last.info.hy*0.95,
-    gearZ:last.info.hz};
+  return {secs,nSec,tlo:{i:fI,n:SECT[fI].n},thi:{i:aI,n:SECT[aI].n},
+          joint:{i:jI,n:JOINT[jI].n},
+          recipe:secs.map(q=>q.n).join(" + ")+" / "+JOINT[jI].n};
 }
 
-/* ===================== multi-hull =====================
-   The old dual hull was one shape: a saucer and an engineering hull, welded
-   together for good. This is the general case. Every mass is its own section
-   chain, so a truss can fly beside a sphere hab beside an ogive and none of
-   them needs to know about the others; and the joint library that mates
-   sections along a spine does the mating between masses too, ridden onto the
-   link by xform. A mass placed off the centreline comes back from the mirror
-   pass as a pair, which is how three and four masses stay symmetrical about
-   the keel without any of them being authored twice. */
-function linkHulls(A,B,rr,R,P,out,lock){
-  /* connect axis to axis, not surface to surface: the ends bury themselves in
-     both masses, so a link can never read as floating however they are sized */
-  const lo=Math.max(A.x0,B.x0), hi=Math.min(A.x1,B.x1);
-  let xa,xb;
-  if(hi>lo+1e-6){xa=xb=lo+(hi-lo)*rr(0.30,0.70);}
-  else if(A.x0>B.x1){xa=A.x0+(A.x1-A.x0)*0.20;xb=B.x1-(B.x1-B.x0)*0.20;}
-  else{xa=A.x1-(A.x1-A.x0)*0.20;xb=B.x0+(B.x1-B.x0)*0.20;}
-  const pa=[xa,A.y,A.z], pb=[xb,B.y,B.z];
-  const d=V.sub(pb,pa), L=V.len(d);
-  if(L<1e-6)return null;
-  const ex=V.mul(d,1/L);
-  const up=Math.abs(ex[1])>0.94?[0,0,1]:[0,1,0];
-  const ez=V.norm(V.cross(ex,up)), ey=V.cross(ez,ex);
-  let cr=Math.min(A.r,B.r)*rr(0.46,0.72);
-  if(cr<L*0.11)cr=L*0.11;                    /* never spindly over a long reach */
-  const ji=(lock&&lock.joint!=null)?Math.min(lock.joint,JOINT.length-1)
-                                   :Math.floor(R()*JOINT.length);
-  const tmp=[];
-  JOINT[ji].make(0,L,cr,rr,R,P,tmp,[0,0,0]);
-  tmp.push(CAP([L,0,0],[0,0,0],cr*0.34,{hideA:true,hideB:true}));
-  for(const q of tmp)out.push(xform(q,pa,ex,ey,ez));
-  return {i:ji,n:JOINT[ji].n};
-}
-/* Hull count is its own axis, not a property of any one chassis. Whatever the
-   topology builds becomes the lead mass, and 1-3 further masses berth alongside
-   it — so a lattice rig, a saucer or a plain keel can each be the front half of
-   a two-, three- or four-hull ship. A berth on the centreline is one mass; a
-   berth off it comes back from the mirror as two, so the plans that add up are
-   1+1, 1+2 and 1+1+2. */
-function leadExtent(parts){
-  let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9,hz=0;
-  for(const p of parts)for(const [q,r] of partExtents(p)){
-    x0=Math.min(x0,q[0]-r);x1=Math.max(x1,q[0]+r);
-    y0=Math.min(y0,q[1]-r);y1=Math.max(y1,q[1]+r);
-    hz=Math.max(hz,Math.abs(q[2])+r);
-  }
-  return {x0,x1,y0,y1,hz};
-}
-function addHulls(nH,lead,sr,R,rr,P,out,lock,opts){
-  if(nH<2)return null;
-  const side=R()<0.6?-1:1;
-  const plan=nH===2?[{dy:side,pair:false}]
-            :nH===3?[{dy:rr(-0.4,0.4),pair:true}]
-                   :[{dy:side,pair:false},{dy:rr(-0.4,0.4),pair:true}];
-  const L=Math.max(lead.x1-lead.x0,sr*4);
-  let low=null;
-  for(const b of plan){
-    const r=sr*rr(0.55,0.85), tmp=[];
-    const xN=lead.x1-L*rr(0,0.28);
-    const sp=composeSpine(xN-L*rr(0.55,0.90),xN,r,rr,R,P,tmp,lock,opts);
-    let hy=r,hz=r;
-    for(const q of sp.secs){
-      hy=Math.max(hy,Math.abs(q.off[1])+q.info.hy);
-      hz=Math.max(hz,Math.abs(q.off[2])+q.info.hz);
-    }
-    /* berth off the lead's real extents, so every link is visible daylight */
-    const gap=sr*rr(0.7,1.8);
-    let y=0,z=0;
-    if(b.pair){z=lead.hz+hz+gap;y=b.dy*sr*1.4;}
-    else y=b.dy>0?lead.y1+hy+gap:lead.y0-hy-gap;
-    for(const q of tmp)out.push(xlate(q,[0,y,z]));
-    const h={sp,r,y,z,hy,x0:sp.xTail,x1:xN};
-    linkHulls({x0:lead.x0,x1:lead.x1,y:(lead.y0+lead.y1)*0.5,z:0,r:sr},h,rr,R,P,out,lock);
-    if(!low||h.y-h.hy<low.y-low.hy)low=h;
-  }
-  /* if a mass now hangs below the lead, the gear belongs on it, not on thin air */
-  if(low&&low.y-low.hy<lead.y0)
-    return {gear:FR([low.sp.gearX,low.y+low.sp.gearY,low.z],[0,-1,0],[1,0,0],[0,0,1],
-                    {x:sr*2.0,y:L*0.28,z:low.sp.gearZ*1.1})};
-  return null;
-}
+/* Every chassis fills in the same proportion sheet; the differences between
+   them are entirely in these numbers plus whatever extra structure they push.
+   Doing it this way is what keeps eleven skeletons from becoming eleven
+   separate socket contracts that the variant library would have to know about. */
+function mechSockets(c,parts,rr,R,P,lock){
+  const {TH,TR,dep,wid,shY,shZ,neckH,armR,armL,foreL,hipH,hipW,driveL,
+         chestY,backY,waistY,prof,auxY,auxZ,leanX}=c;
+  const torso=composeTorso(0,TH,TR,rr,R,P,parts,lock,{prof,dep,wid});
 
-const HULLN=[{n:"SINGLE"},{n:"TWIN"},{n:"TRIPLE"},{n:"QUAD"}];
-const SYM=[{n:"BILATERAL",k:2},{n:"RADIAL-3",k:3},{n:"RADIAL-4",k:4},{n:"RADIAL-6",k:6}];
+  /* the yoke stubs are chassis, not slot: the shoulder variant plugs into them,
+     so an open-gimbal shoulder still has something to be a gimbal on */
+  for(const s of [-1,1]){
+    parts.push(TUB([leanX*shY,shY,s*TR*wid*prof(shY/TH)*0.7],[leanX*shY,shY,s*shZ],
+      TR*0.34,TR*0.30,{det:hullDet([0.4,0.8],[],[])}));
+    parts.push(SPH([leanX*shY,shY,s*shZ],TR*0.34));
+  }
+  parts.push(TUB([leanX*TH*0.98,TH*0.92,0],[leanX*TH,TH,0],TR*prof(0.92)*0.7,TR*0.4,{}));
+  parts.push(TUB([0,-hipH,0],[0,0,0],TR*prof(0)*0.86,TR*0.8,{det:hullDet([0.5],[],[])}));
+
+  const up=[0,1,0], fore=[1,0,0], star=[0,0,1], down=[0,-1,0];
+  const S={};
+  S.neck=FR([leanX*TH,TH,0],up,fore,star,{x:neckH,y:TR*dep*0.9,z:TR*wid*0.9});
+  S.head=FR([leanX*TH,TH+neckH*0.84,0],up,fore,star,
+            {x:TR*1.5,y:TR*dep*1.15,z:TR*wid*1.15});
+  S.chest=FR([leanX*chestY+TR*dep*prof(chestY/TH)*0.9,chestY,0],fore,up,star,
+             {x:TR*dep*0.8,y:TH*0.34,z:TR*wid*1.5});
+  S.back=FR([leanX*backY-TR*dep*prof(backY/TH)*0.85,backY,0],[-1,0,0],up,star,
+            {x:TR*dep*1.5,y:TH*0.42,z:TR*wid*1.7});
+  S.shoulder=FR([leanX*shY,shY,shZ],star,up,fore,{x:TR*0.95,y:TR*0.85,z:TR*dep*0.95});
+  S.upper=FR([leanX*shY,shY-TR*0.55,shZ+TR*0.62],down,fore,star,
+             {x:armL,y:armR*1.2,z:armR*1.2},false,armR);
+  S.fore=FR([leanX*shY,shY-TR*0.55-armL*0.84,shZ+TR*0.62],down,fore,star,
+            {x:foreL,y:armR*1.15,z:armR*1.15},false,armR*0.9);
+  S.waist=FR([leanX*waistY,waistY,0],down,fore,star,
+             {x:TH*0.4,y:TR*dep*1.2,z:TR*wid*1.5},false,TR*prof(waistY/TH)*0.9);
+  S.hip=FR([0,-hipH*0.2,0],down,fore,star,{x:hipH,y:TR*dep*1.1,z:hipW},false,TR*0.78);
+  S.drive=FR([0,-hipH,0],down,fore,star,{x:driveL,y:TR*dep*2.0,z:hipW*1.05},true,TR*0.8);
+  S.aux=FR([leanX*auxY,auxY,auxZ],star,up,fore,{x:TR*0.7,y:TR*0.7,z:TR*0.7});
+  return {sockets:S,sr:TR,torso};
+}
+const P0=t=>1-0.12*t;                       /* a mild taper is the default torso */
+const base=o=>Object.assign({
+  TH:34,TR:11,dep:1.0,wid:1.0,shY:29,shZ:15,neckH:5,armR:3.6,armL:15,foreL:15,
+  hipH:7,hipW:11,driveL:44,chestY:22,backY:24,waistY:3,prof:P0,auxY:26,auxZ:12,leanX:0
+},o);
+
 const TOPO=[
-/* ---------------- 1. keel: one tube, everything bolted to it ---------------- */
-{n:"KEEL",role:["ALV","ATMOSPHERIC LANDING VEHICLE"],spine:true,axial:true,
-  make(R,rr,P,out,lock,opts){
-  const sr=1.8+P.fuse*1.05, L0=(13+P.fuse*15)*rr(0.92,1.12);
-  const nose=L0*0.5;
-  const sp=composeSpine(-L0*0.5,nose,sr,rr,R,P,out,lock,opts);
-  const tail=sp.xTail, L=nose-tail;
-  if(P.detail>0.45)
-    out.push(BOX([sp.jx,sr*0.98,0],[L*0.06,0,0],[0,sr*0.12,0],[0,0,sr*0.44],{det:{ribs:3}}));
-  return {sr,spine:sp,sockets:{
-    cockpit:FR([nose,0,0],[1,0,0],[0,1,0],[0,0,1],{x:L*0.34,y:sr*2.4,z:sr*2.4}),
-    wing:FR([sp.wingX,sp.wingY,sp.wingZ],[0,0,1],[0,1,0],[1,0,0],{x:L*0.42,y:sr*1.6,z:L*0.30}),
-    tail:FR([sp.tailX,sp.tailY,sp.endOff[2]],[0,1,0],[1,0,0],[0,0,1],{x:L*0.24,y:L*0.22,z:L*0.20}),
-    booster:FR([tail,sp.endOff[1],sp.endOff[2]],[-1,0,0],[0,1,0],[0,0,1],
-               {x:L*0.34,y:sr*2.2,z:sr*2.2}),
-    gear:FR([sp.gearX,sp.gearY,sp.endOff[2]*0.5],[0,-1,0],[1,0,0],[0,0,1],
-            {x:sr*2.0,y:L*0.30,z:sp.gearZ*1.1})
-  }};
-}},
-
-/* ---- 3. saucer: one lifting disc, forward prongs, cockpit off to one side ---- */
-{n:"SAUCER",role:["LFR","LIGHT FREIGHTER"],make(R,rr,P,out){
-  const Rp=6.5+P.fuse*4.5, ph=Rp*rr(0.24,0.34), sr=Rp*0.30;
-  const ez=rr(0.86,1.0), ex=rr(0.94,1.18);
-  out.push(LTH([0,0,0],[0,1,0],
-    [[-ph,Rp*0.46],[-ph*0.42,Rp*0.90],[0,Rp],[ph*0.46,Rp*0.88],[ph,Rp*0.44]],
-    {rings:[1,2,3],mer:Math.round(6+P.detail*5)},{ell:[ez,ex]}));
-  out.push(LTH([0,ph*0.98,0],[0,1,0],
-    [[0,Rp*0.34],[Rp*0.13,Rp*0.24],[Rp*0.19,Rp*0.10]],{rings:[1]},{ell:[ez,ex]}));
-  out.push(LTH([0,-ph*0.98,0],[0,1,0],
-    [[0,Rp*0.28],[-Rp*0.10,Rp*0.20],[-Rp*0.14,Rp*0.08]],{rings:[1]},{ell:[ez,ex]}));
-
-  /* forward prongs, split about the centreline */
-  const mz=Rp*rr(0.28,0.42), mL=Rp*rr(0.5,0.85);
-  out.push(CAP([Rp*ex*0.86+mL,0,mz],[Rp*ex*0.52,0,mz],ph*rr(0.44,0.62),
-    {hideB:true,det:hullDet([0.3,0.6],[],[])}));
-  out.push(TUB([Rp*ex*0.86+mL,0,mz],[Rp*ex*0.86+mL*1.3,0,mz],ph*0.44,ph*0.20));
-
-  /* cockpit boom to starboard — the one deliberate break in symmetry */
-  const bz=Rp*rr(0.52,0.70), bx=Rp*rr(0.18,0.40);
-  out.push(CAP([bx,0,bz*0.8],[bx,0,bz+Rp*0.34],ph*rr(0.34,0.46),{solo:true,hideA:true}));
-
-  /* engine strip across the trailing edge */
-  out.push(BOX([-Rp*ex*0.80,0,0],[Rp*0.10,0,0],[0,ph*0.52,0],[0,0,Rp*0.62],{det:{ribs:5}}));
-  return {sr,sockets:{
-    cockpit:FR([bx+ph*0.2,0,bz+Rp*0.34],[1,0,0],[0,1,0],[0,0,1],
-               {x:Rp*0.55,y:ph*1.8,z:Rp*0.45},true),
-    wing:FR([-Rp*0.2,0,Rp*ez*0.92],[0,0,1],[0,1,0],[1,0,0],{x:Rp*0.5,y:ph*1.4,z:Rp*0.7}),
-    tail:FR([-Rp*0.3,ph*0.9,0],[0,1,0],[1,0,0],[0,0,1],{x:Rp*0.45,y:Rp*0.45,z:Rp*0.45}),
-    booster:FR([-Rp*ex*0.88,0,0],[-1,0,0],[0,1,0],[0,0,1],{x:Rp*0.42,y:ph*1.6,z:Rp*0.62}),
-    gear:FR([0,-ph*0.95,0],[0,-1,0],[1,0,0],[0,0,1],{x:Rp*0.5,y:Rp*0.9,z:Rp*0.8})
-  }};
-}},
-
-/* ------------- 4. catamaran: twin hulls, one bridge, paired sterns ------------- */
-{n:"CATAMARAN",role:["TND","ORBITAL TENDER"],spine:true,make(R,rr,P,out,lock,opts){
-  const sr=1.5+P.fuse*0.85, L=(11+P.fuse*12)*rr(0.9,1.1), off=sr*rr(2.6,3.8);
-  const tmp=[], sp=composeSpine(-L*0.5,L*0.5,sr,rr,R,P,tmp,lock,opts);
-  for(const q of tmp) out.push(xlate(q,[0,0,off]));
-  const bx=L*rr(0.02,0.16), bw=L*rr(0.13,0.20);
-  out.push(BOX([bx,sr*0.30,0],[bw,0,0],[0,sr*0.62,0],[0,0,off*0.94],{det:{ribs:4}}));
-  for(const cx of [bx+bw*1.6,bx-bw*1.9])
-    out.push(TUB([cx,0,off*0.9],[cx,0,-off*0.9],sr*0.26,sr*0.26,{hideA:true,hideB:true}));
-  return {sr,spine:sp,sockets:{
-    cockpit:FR([bx+bw,sr*0.30,0],[1,0,0],[0,1,0],[0,0,1],{x:L*0.30,y:sr*2.0,z:off*0.9}),
-    wing:FR([sp.wingX,0,off+sp.wingZ*0.9],[0,0,1],[0,1,0],[1,0,0],{x:L*0.34,y:sr*1.4,z:L*0.28}),
-    tail:FR([bx-bw*0.6,sr*0.95,0],[0,1,0],[1,0,0],[0,0,1],{x:L*0.24,y:L*0.22,z:off*0.9}),
-    booster:FR([-L*0.5,0,off],[-1,0,0],[0,1,0],[0,0,1],{x:L*0.34,y:sr*2.0,z:sr*2.0}),
-    gear:FR([bx,-sr*0.4,0],[0,-1,0],[1,0,0],[0,0,1],{x:sr*2.4,y:L*0.28,z:off*0.9})
-  }};
-}},
-
-/* ---- 6. trimaran: engines are full-length bodies flanking the hull, not a stern ---- */
-{n:"TRIMARAN",role:["PBT","PATROL TENDER"],spine:true,make(R,rr,P,out,lock,opts){
-  const sr=1.5+P.fuse*0.85, L=(12+P.fuse*13)*rr(0.92,1.1);
-  const orr=sr*rr(0.62,0.88), off=sr*rr(2.4,3.4);
-  const sp=composeSpine(-L*0.5,L*0.5,sr,rr,R,P,out,lock,opts);
-  /* one outrigger, running most of the hull's length; the mirror pass makes the pair */
-  const oL=L*rr(0.74,0.96), ox=L*rr(-0.08,0.10);
-  out.push(CAP([ox+oL*0.5,0,off],[ox-oL*0.5,0,off],orr,{hideB:true,
-    det:hullDet([0.16,0.34,0.52,0.70,0.88],[0.5,3.9],[])}));
-  out.push(TUB([ox+oL*0.5,0,off],[ox+oL*0.5+orr*0.8,0,off],orr*0.92,orr*0.38,
-    {det:hullDet([0.5],[],[])}));
-  for(const px of [ox+oL*rr(0.22,0.34),ox-oL*rr(0.16,0.30)])
-    out.push(PNL([[px+L*0.045,-sr*0.12,sr*0.55],[px+L*0.045,-sr*0.12,off-orr*0.5],
-                  [px-L*0.045,-sr*0.12,off-orr*0.5],[px-L*0.045,-sr*0.12,sr*0.55]],null,
-                 [0,1,0],sr*rr(0.34,0.5),{ribs:2}));
-  return {sr,spine:sp,sockets:{
-    cockpit:FR([L*0.5,0,0],[1,0,0],[0,1,0],[0,0,1],{x:L*0.34,y:sr*2.2,z:sr*2.2}),
-    wing:FR([ox,0,off+orr*0.82],[0,0,1],[0,1,0],[1,0,0],{x:L*0.30,y:orr*1.6,z:L*0.26}),
-    tail:FR([sp.tailX,sp.tailY,0],[0,1,0],[1,0,0],[0,0,1],{x:L*0.24,y:L*0.22,z:L*0.20}),
-    booster:FR([ox-oL*0.5,0,off],[-1,0,0],[0,1,0],[0,0,1],{x:L*0.26,y:orr*2.1,z:orr*2.1}),
-    gear:FR([L*0.02,-sr*0.9,0],[0,-1,0],[1,0,0],[0,0,1],{x:sr*2.2,y:L*0.3,z:off*0.85})
-  }};
-}},
-
-/* ---- 7. edge-on: the hull's long axis is not the flight axis. It stands on its
-   stern to land and flies flat-face-forward, so thrust leaves through the narrow
-   trailing edge and the crew module is gimballed to stay level in both attitudes. ---- */
-{n:"EDGE-ON",role:["PTL","EDGE-ON PATROL CRAFT"],note:"ATTITUDE 90°",make(R,rr,P,out){
-  const Hh=(10+P.fuse*10)*rr(0.9,1.1);      /* long axis — vertical in flight */
-  const Lx=Hh*rr(0.44,0.60);                /* fore-aft depth */
-  const th=Hh*rr(0.15,0.22);                /* beam */
-  const sr=th*0.5;
-  const spade=[[Lx*0.50,Hh*0.06],[Lx*0.28,Hh*0.44],[-Lx*0.20,Hh*0.50],[-Lx*0.50,Hh*0.18],
-               [-Lx*0.46,-Hh*0.34],[-Lx*0.06,-Hh*0.50],[Lx*0.38,-Hh*0.28]];
-  out.push(PNL(spade.map(q=>[q[0],q[1],0]),null,[0,0,1],th,
-    {ribs:Math.round(3+P.detail*3)}));
-  /* raised flank superstructure — mirrored to both faces */
-  const sp2=spade.map(q=>[q[0]*0.68,q[1]*0.66,0]);
-  out.push(PNL(sp2.map(q=>[q[0],q[1],th*0.5]),null,[0,0,1],th*rr(0.20,0.34),{ribs:2}));
-  /* gimbal ring the crew module turns in */
-  const cy=Hh*rr(0.24,0.34);
-  out.push(DSC([Lx*0.30,cy,0],[1,0,0],th*rr(0.62,0.80),th*0.34));
-  if(P.detail>0.35){
-    out.push(BOX([-Lx*0.24,Hh*0.40,0],[Lx*0.09,0,0],[0,Hh*0.04,0],[0,0,th*0.62],{det:{ribs:3}}));
-    out.push(TUB([Lx*0.10,-Hh*0.46,0],[Lx*0.10,-Hh*0.56,0],th*0.14,th*0.20));
-  }
-  return {sr,sockets:{
-    cockpit:FR([Lx*0.32,cy,0],[1,0,0],[0,1,0],[0,0,1],{x:Lx*0.55,y:th*1.9,z:th*1.6}),
-    wing:FR([-Lx*0.06,-Hh*0.06,th*0.60],[0,0,1],[0,1,0],[1,0,0],{x:Hh*0.34,y:Hh*0.34,z:Lx*0.6}),
-    tail:FR([-Lx*0.28,Hh*0.48,0],[0,1,0],[1,0,0],[0,0,1],{x:Hh*0.26,y:Lx*0.5,z:th*1.6}),
-    booster:FR([-Lx*0.48,-Hh*0.02,0],[-1,0,0],[0,1,0],[0,0,1],{x:Lx*0.42,y:Hh*0.42,z:th*1.5}),
-    /* the drop and the foot spread are the beam's business, not the height's:
-       scaling them off Hh put the feet out past the sloping bottom edge and
-       asked for stilts to reach back up to it */
-    gear:FR([-Lx*0.04,-Hh*0.48,0],[0,-1,0],[1,0,0],[0,0,1],{x:th*1.8,y:Lx*0.30,z:th*1.5})
-  }};
-}},
-
-/* ---- 8. lattice: no pressure hull at all — an open frame with modules clipped in ---- */
-{n:"LATTICE",role:["CRV","CONSTRUCTION RIG"],spine:true,make(R,rr,P,out,lock,opts){
-  const sr=1.5+P.fuse*0.8, L=(15+P.fuse*15)*rr(0.9,1.1);
-  const w=sr*rr(1.8,2.6), h=sr*rr(1.4,2.1), bays=Math.max(3,Math.round(L/(sr*2.6)));
-  const cor=[[h,w],[h,-w],[-h,-w],[-h,w]];
-  const at=(t,c)=>[L*0.5-L*t,c[0],c[1]];
-  for(const c of cor) out.push(CAP(at(0,c),at(1,c),sr*0.22));
-  for(let i=0;i<=bays;i++){
-    const t=i/bays;
-    for(let j=0;j<4;j++) out.push(CAP(at(t,cor[j]),at(t,cor[(j+1)%4]),sr*0.17));
-    if(i<bays){const t2=(i+1)/bays;
-      for(let j=0;j<4;j++) out.push(CAP(at(t,cor[j]),at(t2,cor[(j+1)%4]),sr*0.12));}
-  }
-  /* payload rides inside the frame instead of being part of it */
-  const pr=Math.min(h,w)*0.62;
-  const sp=composeSpine(-L*0.40,L*0.40,pr,rr,R,P,out,lock,opts);
-  out.push(DSC([L*0.5,0,0],[1,0,0],Math.min(h,w)*1.05,sr*0.5));
-  return {sr,spine:sp,sockets:{
-    cockpit:FR([L*0.5,0,0],[1,0,0],[0,1,0],[0,0,1],
-               {x:L*0.26,y:h*1.5,z:w*1.5},false,Math.min(h,w)*0.8),
-    wing:FR([L*rr(-0.1,0.1),0,w],[0,0,1],[0,1,0],[1,0,0],
-            {x:L*0.30,y:h*1.2,z:L*0.24},false,sr*0.5),
-    tail:FR([-L*rr(0.22,0.36),h,0],[0,1,0],[1,0,0],[0,0,1],
-            {x:L*0.2,y:L*0.18,z:w*1.2},false,sr*0.5),
-    booster:FR([sp.xTail,0,0],[-1,0,0],[0,1,0],[0,0,1],
-               {x:L*0.28,y:h*1.6,z:w*1.6},false,pr),
-    gear:FR([L*0.02,-h,0],[0,-1,0],[1,0,0],[0,0,1],
-            {x:h*1.6,y:L*0.28,z:w*1.2},false,sr*0.6)
-  }};
-}},
-
-{n:"SPINAL",role:["SMV","SPINAL MOUNT VESSEL"],spine:true,make(R,rr,P,out,lock,opts){
-  const sr=1.6+P.fuse*0.9, L=(16+P.fuse*16)*rr(0.9,1.1), br=sr*rr(1.9,2.6);
-  out.push(TUB([L*0.5,0,0],[L*0.34,0,0],br*0.72,br,{det:hullDet([0.5],[],[])}));
-  out.push(DSC([L*0.5,0,0],[1,0,0],br*0.78,br*0.52));
-  for(let i=0;i<3;i++) out.push(DSC([L*(0.3-i*0.16),0,0],[1,0,0],br*1.1,br*0.94));
-  const sp=composeSpine(-L*0.36,L*0.34,br,rr,R,P,out,lock,opts);
-  const tail=sp.xTail;
-  out.push(TUB([tail,0,0],[tail-br*0.5,0,0],br,br*0.7,{hideB:true}));
-  /* the crew section is a small mass hung off the big one */
-  const cy=br*rr(0.95,1.25), cx=tail*rr(0.2,0.5);
-  out.push(CAP([cx+L*0.10,cy,0],[cx-L*0.10,cy,0],sr*0.9,
-    {det:hullDet([0.3,0.6],[0.5,3.9],[])}));
-  out.push(CAP([cx,cy*0.45,0],[cx,0,0],sr*0.5,{hideB:true}));
-  return {sr,spine:sp,sockets:{
-    cockpit:FR([cx+L*0.10,cy,0],[1,0,0],[0,1,0],[0,0,1],
-               {x:L*0.2,y:sr*2.0,z:sr*2.0},false,sr*0.9),
-    wing:FR([sp.wingX,0,sp.wingZ],[0,0,1],[0,1,0],[1,0,0],
-            {x:L*0.32,y:br*1.2,z:L*0.24},false,br*0.5),
-    tail:FR([sp.tailX,sp.tailY,0],[0,1,0],[1,0,0],[0,0,1],
-            {x:L*0.2,y:L*0.18,z:L*0.18},false,br*0.5),
-    booster:FR([tail-br*0.5,0,0],[-1,0,0],[0,1,0],[0,0,1],
-               {x:L*0.26,y:br*1.5,z:br*1.5},false,br*0.7),
-    gear:FR([sp.gearX,sp.gearY,0],[0,-1,0],[1,0,0],[0,0,1],
-            {x:br*1.5,y:L*0.28,z:br*1.3},false,br*0.45)
-  }};
-}},
-
-/* ---- 10. stack: plates on a vertical column, flying edge-on ---- */
-{n:"STACK",role:["HSV","HEAVY SURVEY VESSEL"],make(R,rr,P,out){
-  const n=3+Math.round(R()*1.4), Rd=(5+P.fuse*3.4)*rr(0.9,1.1);
-  const gap=Rd*rr(0.32,0.48), ex=rr(0.9,1.25), col=Rd*0.17, sr=col;
-  const top=(n-1)*gap*0.5;
-  out.push(CAP([0,top+gap*0.6,0],[0,-top-gap*0.6,0],col,{hideA:true,hideB:true,
-    det:hullDet([0.3,0.5,0.7],[],[])}));
-  let wideR=0, wideY=0;
-  for(let i=0;i<n;i++){
-    const y=top-i*gap, k=1-Math.abs(i-(n-1)/2)/n*0.5, rd=Rd*k, th=gap*rr(0.26,0.4);
-    if(rd>wideR){wideR=rd;wideY=y;}
-    out.push(LTH([0,y,0],[0,1,0],
-      [[-th,rd*0.5],[-th*0.4,rd*0.92],[0,rd],[th*0.4,rd*0.9],[th,rd*0.48]],
-      {rings:[1,2,3],mer:Math.round(5+P.detail*4)},{ell:[1,ex]}));
-  }
-  for(let i=0;i<4;i++){
-    const a=i/4*Math.PI*2+0.4;
-    out.push(CAP([Math.cos(a)*Rd*0.62,top,Math.sin(a)*Rd*0.62],
-                 [Math.cos(a)*Rd*0.62,-top,Math.sin(a)*Rd*0.62],col*0.9));
-  }
-  /* a bridge pod forward and an engine pod aft, both spanning the stack, so the
-     cockpit and the boosters continue an existing body instead of sitting on a rim */
-  const pr=gap*rr(0.62,0.82), py=wideY;
-  out.push(CAP([wideR*ex*0.55,py,0],[wideR*ex*1.02,py,0],pr,{hideB:true,
-    det:hullDet([0.4,0.75],[0.5,3.9],[])}));
-  out.push(CAP([-wideR*ex*0.55,py-gap*0.35,0],[-wideR*ex*1.0,py-gap*0.35,0],pr*1.1,
-    {hideB:true,det:hullDet([0.35,0.7],[],[])}));
-  return {sr,sockets:{
-    cockpit:FR([wideR*ex*1.02,py,0],[1,0,0],[0,1,0],[0,0,1],
-               {x:Rd*0.55,y:pr*2.2,z:pr*2.2},false,pr),
-    wing:FR([0,wideY,wideR*0.96],[0,0,1],[0,1,0],[1,0,0],
-            {x:Rd*0.70,y:gap*1.1,z:Rd*0.8},false,gap*0.34),
-    tail:FR([0,top+gap*0.6,0],[0,1,0],[1,0,0],[0,0,1],
-            {x:Rd*0.5,y:Rd*0.45,z:Rd*0.45},false,col),
-    booster:FR([-wideR*ex*1.0,py-gap*0.35,0],[-1,0,0],[0,1,0],[0,0,1],
-               {x:Rd*0.5,y:pr*2.0,z:pr*2.0},false,pr*1.1),
-    gear:FR([0,-top-gap*0.6,0],[0,-1,0],[1,0,0],[0,0,1],
-            {x:Rd*0.55,y:Rd*0.7,z:Rd*0.7},false,col)
-  }};
-}},
-
-/* ---- 11. delta: the whole ship is one lifting planform ---- */
-{n:"DELTA",role:["ASV","AEROSPACE VEHICLE"],make(R,rr,P,out){
-  const L=(15+P.fuse*13)*rr(0.9,1.1), W=L*rr(0.46,0.64), H=L*rr(0.12,0.18);
-  const sp=H*rr(0.30,0.38), sr=sp;
-  const plan=[[L*0.5,0],[L*0.06,W*0.62],[-L*0.42,W],[-L*0.5,W*0.82],
-              [-L*0.5,-W*0.82],[-L*0.42,-W],[L*0.06,-W*0.62]];
-  const top=plan.map(q=>[q[0]*0.9,q[1]*0.78]);
-  out.push(PNL(top.map(q=>[q[0],0,q[1]]),plan.map(q=>[q[0],0,q[1]]),[0,1,0],H,{ribs:0}));
-  out.push(CAP([L*0.36,H*0.36,0],[-L*0.30,H*0.40,0],sp,
-    {det:hullDet([0.25,0.5,0.75],[0.5,3.9],[])}));
-  if(P.detail>0.3)for(const sgn of [1,-1])
-    out.push(BOX([-L*0.30,H*0.12,sgn*W*0.5],[L*0.12,0,0],[0,H*0.40,0],[0,0,W*0.11],{det:{ribs:3}}));
-  out.push(TUB([-L*0.5,H*0.06,0],[-L*0.54,H*0.06,0],H*0.58,H*0.52,{hideA:true}));
-  return {sr,sockets:{
-    cockpit:FR([L*0.46,H*0.38,0],[1,0,0],[0,1,0],[0,0,1],
-               {x:L*0.20,y:sp*2.4,z:sp*2.4},false,sp),
-    wing:FR([-L*0.30,0,W*0.94],[0,0,1],[0,1,0],[1,0,0],
-            {x:L*0.17,y:H*0.9,z:L*0.20},false,H*0.42),
-    tail:FR([-L*0.34,H*0.62,0],[0,1,0],[1,0,0],[0,0,1],
-            {x:L*0.18,y:L*0.16,z:W*0.55},false,sp*0.9),
-    booster:FR([-L*0.54,H*0.06,0],[-1,0,0],[0,1,0],[0,0,1],
-               {x:L*0.18,y:H*1.2,z:W*0.45},false,H*0.52),
-    gear:FR([0,-H*0.5,0],[0,-1,0],[1,0,0],[0,0,1],
-            {x:H*1.6,y:L*0.26,z:W*0.55},false,H*0.45)
-  }};
-}},
-
-{n:"ASYMMETRIC",role:["ITV","INDEPENDENT TRADER"],spine:true,make(R,rr,P,out,lock,opts){
-  const sr=1.7+P.fuse*1.0, L=(13+P.fuse*13)*rr(0.9,1.1);
-  const sp=composeSpine(-L*0.5,L*0.5,sr,rr,R,P,out,lock,opts);
-  const tail=sp.xTail;
-  /* a big cargo mass on one side only */
-  const pz=sr*rr(2.0,2.8), pr=sr*rr(0.9,1.3), px=L*rr(-0.16,0.10);
-  out.push(CAP([px+L*0.20,0,pz],[px-L*0.20,0,pz],pr,{solo:true,
-    det:hullDet([0.2,0.45,0.7],[0.5,3.9],[])}));
-  for(const dx of [px+L*0.13,px-L*0.11])
-    out.push(CAP([dx,0,sr*0.7],[dx,0,pz-pr*0.7],sr*0.24,{solo:true}));
-  /* and a counterweight boom the other way */
-  const bz=-sr*rr(2.2,3.4);
-  out.push(CAP([px+L*0.03,0,-sr*0.7],[px+L*0.03,0,bz],sr*0.2,{solo:true}));
-  out.push(SPH([px+L*0.03,0,bz],sr*rr(0.42,0.62),{solo:true,det:{rings:[0.3,0.5,0.7]}}));
-  return {sr,spine:sp,sockets:{
-    cockpit:FR([L*0.5,0,0],[1,0,0],[0,1,0],[0,0,1],{x:L*0.28,y:sr*2.2,z:sr*2.2},false,sr),
-    wing:FR([px,-pr*0.2,pz+pr*0.85],[0,0,1],[0,1,0],[1,0,0],
-            {x:L*0.28,y:pr*1.4,z:L*0.22},true,pr*0.7),
-    tail:FR([sp.tailX,sp.tailY,0],[0,1,0],[1,0,0],[0,0,1],
-            {x:L*0.22,y:L*0.20,z:L*0.18},false,sr*0.7),
-    booster:FR([tail,0,0],[-1,0,0],[0,1,0],[0,0,1],{x:L*0.28,y:sr*2.2,z:sr*2.2},false,sr),
-    gear:FR([sp.gearX,sp.gearY,0],[0,-1,0],[1,0,0],[0,0,1],
-            {x:sr*1.9,y:L*0.28,z:sr*1.5},false,sr*0.6)
-  }};
-}},
-
-/* --------------- 5. ring: an annulus around a spine, no keel at all --------------- */
-{n:"RING",role:["SRV","SURVEY RING"],make(R,rr,P,out){
-  const sr=1.5+P.fuse*0.8, Rr=(6+P.fuse*4)*rr(0.9,1.1), tr=Rr*rr(0.08,0.13);
-  const L=Rr*rr(0.95,1.4), rx=-L*rr(0.0,0.16);
-  out.push(CAP([L*0.5,0,0],[-L*0.5,0,0],sr,{hideA:true,hideB:true,
-    det:hullDet([0.25,0.5,0.75],[0.5,3.9],[])}));
-  const seg=20;
-  for(let i=0;i<seg;i++){
-    const a0=i/seg*Math.PI*2,a1=(i+1)/seg*Math.PI*2;
-    out.push(CAP([rx+Math.cos(a0)*Rr,0,Math.sin(a0)*Rr],
-                 [rx+Math.cos(a1)*Rr,0,Math.sin(a1)*Rr],tr,{solo:true}));
-  }
-  for(let i=0;i<4;i++){
-    const a=i/4*Math.PI*2+Math.PI/4;
-    out.push(TUB([rx,0,0],[rx+Math.cos(a)*(Rr-tr),0,Math.sin(a)*(Rr-tr)],
-                 sr*0.30,sr*0.20,{solo:true,hideA:true}));
-  }
-  if(P.detail>0.35) for(let i=0;i<4;i++){
-    const a=i/4*Math.PI*2;
-    out.push(BOX([rx+Math.cos(a)*Rr,0,Math.sin(a)*Rr],
-      [Math.cos(a)*tr*1.5,0,Math.sin(a)*tr*1.5],[0,tr*1.4,0],
-      [-Math.sin(a)*tr*2.2,0,Math.cos(a)*tr*2.2],{solo:true}));
-  }
-  return {sr,sockets:{
-    cockpit:FR([L*0.5,0,0],[1,0,0],[0,1,0],[0,0,1],{x:L*0.5,y:sr*2.2,z:sr*2.2}),
-    wing:FR([rx,0,Rr+tr*0.5],[0,0,1],[0,1,0],[1,0,0],{x:Rr*0.45,y:tr*3,z:Rr*0.5}),
-    tail:FR([rx,sr*0.85,0],[0,1,0],[1,0,0],[0,0,1],{x:Rr*0.4,y:Rr*0.4,z:Rr*0.4}),
-    booster:FR([-L*0.5,0,0],[-1,0,0],[0,1,0],[0,0,1],{x:L*0.45,y:sr*2.0,z:sr*2.0}),
-    gear:FR([L*0.1,-sr*0.9,0],[0,-1,0],[1,0,0],[0,0,1],{x:sr*2.0,y:L*0.4,z:sr*1.6})
-  }};
-}}
+{n:"HUMANOID",axial:false,note:"narrow waist, high yoke — the reference build",
+ make(R,rr,P,parts,lock){return mechSockets(base({
+   TH:rr(32,38),TR:rr(10,12),dep:rr(0.85,1.0),wid:rr(0.95,1.15),
+   shY:rr(28,32),shZ:rr(14,17),armL:rr(14,17),foreL:rr(13,16),driveL:rr(42,50),
+   prof:t=>0.78+0.42*t-0.2*t*t
+ }),parts,rr,R,P,lock);}},
+{n:"BARREL",axial:false,note:"squat and wide; the yoke sits at mid-chest",
+ make(R,rr,P,parts,lock){return mechSockets(base({
+   TH:rr(22,27),TR:rr(13,16),dep:rr(1.0,1.2),wid:rr(1.15,1.4),
+   shY:rr(17,21),shZ:rr(17,21),armL:rr(10,13),foreL:rr(10,13),
+   hipH:rr(5,8),hipW:rr(13,17),driveL:rr(30,40),chestY:rr(13,17),backY:rr(14,19),
+   prof:t=>1.0+0.1*Math.sin(t*3.1)
+ }),parts,rr,R,P,lock);}},
+{n:"HUNCHBACK",axial:false,note:"head sunk between the yokes, mass carried aft",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(26,31),TR:rr(11,14),dep:rr(1.1,1.35),wid:rr(1.0,1.2),
+     shY:rr(24,29),shZ:rr(15,19),neckH:rr(1.6,3),armL:rr(12,15),foreL:rr(12,16),
+     driveL:rr(34,44),backY:rr(20,26),leanX:rr(-0.16,-0.08),
+     prof:t=>0.8+0.5*t-0.34*t*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   /* the dorsal hump is chassis so the backpack variant lands on top of it */
+   parts.push(CAP([-c.TR*1.0,c.TH*0.72,0],[-c.TR*1.5,c.TH*0.42,0],c.TR*0.6,
+     {det:hullDet([0.35,0.7],[0.4,3.4],[])}));
+   m.sockets.back=FR([-c.TR*1.5,c.TH*0.6,0],[-1,0,0],[0,1,0],[0,0,1],
+     {x:c.TR*1.7,y:c.TH*0.5,z:c.TR*c.wid*1.8});
+   return m;
+ }},
+{n:"GANTRY",axial:true,note:"no shell at all — an open frame with modules clipped in",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(30,36),TR:rr(11,14),dep:rr(0.9,1.05),wid:rr(0.95,1.15),
+     shY:rr(26,32),shZ:rr(15,19),armL:rr(13,17),foreL:rr(12,16),driveL:rr(38,48),
+     prof:t=>0.9+0.16*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
+     parts.push(TUB([Math.cos(a)*c.TR*0.95,0,Math.sin(a)*c.TR*0.95],
+                    [Math.cos(a)*c.TR*1.05,c.TH,Math.sin(a)*c.TR*1.05],c.TR*0.11,c.TR*0.09));}
+   for(const k of [0.3,0.62])
+     parts.push(DSC([0,c.TH*k,0],[0,1,0],c.TR*1.05,c.TR*0.6));
+   return m;
+ }},
+{n:"TURRET",axial:true,note:"the torso is a drum on a slew ring; the head is a cupola",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(20,25),TR:rr(13,16),dep:rr(1.0,1.1),wid:rr(1.0,1.1),
+     shY:rr(14,18),shZ:rr(16,20),neckH:rr(1.4,2.6),armL:rr(10,13),foreL:rr(10,14),
+     hipH:rr(4,6),hipW:rr(14,18),driveL:rr(28,40),chestY:rr(11,15),backY:rr(12,17),
+     prof:t=>1.02-0.06*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   parts.push(DSC([0,-c.hipH*0.2,0],[0,1,0],c.TR*1.25,c.TR*0.7));
+   for(let i=0;i<16;i++){const a=i/16*Math.PI*2;
+     parts.push(BOX([Math.cos(a)*c.TR*1.2,-c.hipH*0.2,Math.sin(a)*c.TR*1.2],
+       [c.TR*0.07,0,0],[0,c.TR*0.07,0],[0,0,c.TR*0.07]));}
+   return m;
+ }},
+{n:"SPLIT",axial:false,note:"two torso masses side by side on one girdle",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(26,32),TR:rr(8,10),dep:rr(1.0,1.2),wid:rr(0.9,1.1),
+     shY:rr(23,29),shZ:rr(17,22),armL:rr(12,16),foreL:rr(12,16),
+     hipW:rr(14,18),driveL:rr(36,46),prof:t=>0.9+0.2*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   /* the second mass is placed off the centreline; the mirror pass makes it a
+      pair, and everything bolted to it comes along for free */
+   const off=c.TR*1.15;
+   parts.push(CAP([0,c.TH*0.28,off],[0,c.TH*0.88,off],c.TR*0.62,
+     {det:hullDet([0.3,0.6,0.85],[0.5,3.6],[])}));
+   parts.push(TUB([0,c.TH*0.6,c.TR*0.4],[0,c.TH*0.6,off],c.TR*0.2,c.TR*0.18));
+   return m;
+ }},
+{n:"CANOPY",axial:false,note:"glazed nose, arms carried low — a cab, not a chest",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(24,29),TR:rr(11,14),dep:rr(1.25,1.5),wid:rr(1.0,1.15),
+     shY:rr(17,22),shZ:rr(15,19),neckH:rr(2,3.4),armL:rr(12,16),foreL:rr(12,16),
+     driveL:rr(32,42),chestY:rr(16,21),leanX:rr(0.05,0.14),
+     prof:t=>1.05-0.3*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   parts.push(TUB([c.TR*0.8,c.TH*0.66,0],[c.TR*2.0,c.TH*0.56,0],c.TR*0.75,c.TR*0.5,
+     {det:hullDet([0.4,0.75],[0.3,1.2,2.1,3.0,3.9,4.8],[])}));
+   parts.push(DSC([c.TR*2.0,c.TH*0.56,0],[1,0,0],c.TR*0.5,c.TR*0.2));
+   m.sockets.chest=FR([c.TR*2.0,c.TH*0.56,0],[1,0,0],[0,1,0],[0,0,1],
+     {x:c.TR*0.7,y:c.TH*0.26,z:c.TR*1.1});
+   return m;
+ }},
+{n:"SLAB",axial:false,note:"one armoured wedge; everything flush, nothing exposed",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(28,34),TR:rr(12,15),dep:rr(0.75,0.9),wid:rr(1.2,1.45),
+     shY:rr(24,30),shZ:rr(16,20),neckH:rr(2,3.6),armL:rr(12,16),foreL:rr(12,16),
+     driveL:rr(36,46),prof:t=>0.95+0.12*t-0.1*t*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   for(const s of [-1,1])
+     parts.push(PNL([[s*c.TR*0.5,0,c.TR*c.wid*0.95],[s*c.TR*0.9,c.TH*0.55,c.TR*c.wid*1.05],
+                     [s*c.TR*0.7,c.TH,c.TR*c.wid*0.8],[s*c.TR*0.3,c.TH*0.5,c.TR*c.wid*0.8]],null,
+       [0,0,1],c.TR*0.1,{ribs:5,line:0.7}));
+   return m;
+ }},
+{n:"TOWER",axial:false,note:"tall and narrow, long arms, yoke right at the top",
+ make(R,rr,P,parts,lock){return mechSockets(base({
+   TH:rr(40,48),TR:rr(8,10),dep:rr(0.9,1.05),wid:rr(0.9,1.05),
+   shY:rr(35,44),shZ:rr(12,15),armL:rr(18,23),foreL:rr(17,22),
+   hipH:rr(7,10),hipW:rr(9,12),driveL:rr(46,58),chestY:rr(26,34),backY:rr(28,36),
+   auxY:rr(30,38),prof:t=>0.8+0.36*t-0.14*t*t
+ }),parts,rr,R,P,lock);}},
+{n:"CRADLE",axial:false,note:"torso slung low between the hips — a quadruped's build",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(18,23),TR:rr(13,16),dep:rr(1.3,1.6),wid:rr(1.1,1.3),
+     shY:rr(13,17),shZ:rr(16,20),neckH:rr(3,5),armL:rr(9,12),foreL:rr(9,13),
+     hipH:rr(3,5),hipW:rr(16,21),driveL:rr(26,36),chestY:rr(10,14),backY:rr(10,15),
+     waistY:rr(1,3),prof:t=>1.0-0.14*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   parts.push(BOX([0,c.TH*0.2,0],[c.TR*c.dep*1.1,0,0],[0,c.TH*0.2,0],[0,0,c.TR*c.wid*1.15],
+     {det:{ribs:5,line:0.7}}));
+   return m;
+ }},
+{n:"PACK",axial:false,note:"the backpack IS the torso; the front is a thin plate",
+ make(R,rr,P,parts,lock){
+   const c=base({TH:rr(26,32),TR:rr(10,13),dep:rr(0.7,0.85),wid:rr(1.0,1.2),
+     shY:rr(23,29),shZ:rr(14,18),armL:rr(12,16),foreL:rr(12,16),
+     driveL:rr(34,44),backY:rr(16,22),leanX:rr(-0.1,-0.03),prof:t=>0.9+0.2*t});
+   const m=mechSockets(c,parts,rr,R,P,lock);
+   parts.push(BOX([-c.TR*1.5,c.TH*0.55,0],[c.TR*0.9,0,0],[0,c.TH*0.42,0],[0,0,c.TR*c.wid*1.1],
+     {det:{ribs:4,line:0.7}}));
+   m.sockets.back=FR([-c.TR*2.4,c.TH*0.55,0],[-1,0,0],[0,1,0],[0,0,1],
+     {x:c.TR*1.9,y:c.TH*0.5,z:c.TR*c.wid*1.6});
+   m.sockets.aux=FR([-c.TR*1.5,c.TH*0.86,c.TR*c.wid*1.1],[0,0,1],[0,1,0],[1,0,0],
+     {x:c.TR*0.7,y:c.TR*0.7,z:c.TR*0.7});
+   return m;
+ }}
 ];
+const DRIVEN=[{n:"—"}];
+const SYM=[{n:"BILATERAL",k:2},{n:"TRILATERAL",k:3},{n:"QUADRILATERAL",k:4}];
 
-function buildShip(seed,P,lock){
+/* ===================== build =====================
+   Order matters here in a way it never did for a ship. A hull's sockets all
+   land on the hull, so they could be filled in any order; a mech's arm is a
+   chain — the humerus roots on the yoke, the forearm roots on the humerus —
+   so each socket is filled against everything already standing, not against
+   the chassis alone. SLOTS is that dependency order, and `on` names the group
+   a variant is allowed to root in. */
+const SLOTS=[
+ {id:"neck",     on:null},
+ {id:"head",     on:"neck"},
+ {id:"chest",    on:null},
+ {id:"back",     on:null},
+ {id:"waist",    on:null},
+ {id:"hip",      on:null},
+ {id:"drive",    on:"hip"},
+ {id:"shoulder", on:null},
+ {id:"upper",    on:"shoulder"},
+ {id:"fore",     on:"upper"},
+ {id:"aux",      on:null}
+];
+const SLOT_IDS=SLOTS.map(s=>s.id);
+
+function buildMech(seed,P,lock){
   const R=mulberry32(seed|0), rr=(a,b)=>a+(b-a)*R(), pick=a=>a[Math.floor(R()*a.length)|0];
   const parts=[], envs=[], chosen={};
+  GK.q=P&&P.detail!=null?P.detail:0.6;
 
   const tIdx=(lock&&lock.topo!=null)?Math.min(lock.topo,TOPO.length-1):Math.floor(R()*TOPO.length);
   const topo=TOPO[tIdx];
   chosen.topo={i:tIdx,n:topo.n};
-  const NA={i:0,n:"—"};
-  chosen.fore=chosen.joint=chosen.aft=chosen.nsec=NA;chosen.recipe="";
   const chassis=topo.make(R,rr,P,parts,lock);
+  const T=chassis.torso;
+  chosen.nsec={i:T.nSec-2,n:T.nSec+" SECTION"+(T.nSec>1?"S":"")};
+  chosen.tlo=T.tlo; chosen.thi=T.thi; chosen.joint=T.joint;
+  chosen.recipe=T.recipe;
 
-  /* rolled on its own, so three ships in four carry more than one hull */
-  const hIdx=(lock&&lock.hulls!=null)?Math.min(lock.hulls,HULLN.length-1)
-                                     :Math.floor(R()*HULLN.length);
-  const nHull=hIdx+1;
-  chosen.hulls={i:hIdx,n:HULLN[hIdx].n};
-  if(nHull>1){
-    const extra=addHulls(nHull,leadExtent(parts),chassis.sr,R,rr,P,parts,lock,{});
-    if(extra&&extra.gear)chassis.sockets.gear=extra.gear;
-  }
-
-  if(chassis.spine){
-    const sp=chassis.spine;
-    chosen.fore={i:sp.fore.i,n:sp.fore.n};
-    chosen.aft={i:sp.aft.i,n:sp.aft.n};
-    chosen.joint={i:sp.joint.i,n:sp.joint.n};
-    chosen.nsec={i:sp.nSec-2,n:sp.nSec+" SECTION"+(sp.nSec>1?"S":"")};
-    chosen.recipe=chassis.recipe||sp.secs.map(q=>q.n).join(" + ");
-    chosen.recipeShort=chassis.recipeShort||chosen.recipe;
-  }
-
-  /* The mount is a point, but a variant that spreads out — gear legs, twin
-     fins — needs the hull surface at each of its feet, not at the socket. */
-  const hullSoFar=parts.slice();
-  /* The reach used to be chassis.sr*5, which is the beam — fine on a hull whose
-     feet spread about as far as it is wide, hopeless on an edge-on spade that
-     is six times taller than it is broad. A foot out past the old reach found
-     nothing, took the 0, and rooted its leg in mid-air with the buried cap
-     still flagged hidden: a strut open at the top, floating. The reach now
-     follows the socket's own envelope, and a miss falls back to the depth under
-     the socket origin — which is on the hull by construction — instead of 0. */
+  /* The mount is a point, but a variant that spreads out — a six-leg drive, a
+     shield — needs the surface under each of its feet, not under the socket. */
+  const standing=parts.slice();
   const probeFor=(fr,E)=>{
     const back=V.mul(V.norm(fr.f),-1);
     const M=Math.max(chassis.sr*5,E.x*1.7+E.y*0.9), N=48;
     const hit=(u,v)=>{
-      const base=V.add(fr.o,V.add(V.mul(fr.u,u),V.mul(fr.s,v)));
+      const base2=V.add(fr.o,V.add(V.mul(fr.u,u),V.mul(fr.s,v)));
       for(let i=0;i<=N;i++){
-        const d=M*i/N, q=V.add(base,V.mul(back,d));
-        for(const cp of hullSoFar) if(inSolid(q,cp)) return d;
+        const d=M*i/N, q=V.add(base2,V.mul(back,d));
+        for(const cp of standing) if(inSolid(q,cp)) return d;
       }
       return -1;
     };
     const home=Math.max(0,hit(0,0));
-    /* an open frame is mostly gaps, so a ray straight up can slip between two
-       members with solid metal either side of it. Nudge and retry before giving
-       up — the leg then roots on the member it was a hair away from. */
     const du=E.y*0.11, dv=E.z*0.11;
     return (u,v)=>{
       let d=hit(u,v);
@@ -1417,37 +1821,81 @@ function buildShip(seed,P,lock){
         d=hit(u+au,v+av);
         if(d>=0)break;
       }
-      /* no ceiling on the depth: clamping it was quietly guaranteeing the very
-         thing this is here to prevent, since a truncated root sits below the
-         surface it was meant to bury itself in. A long leg is handled by making
-         it thicker, not by cutting it short. */
       return d<0?home:d;
     };
   };
 
-  for(const id of ["cockpit","wing","tail","booster","gear"]){
-    const sock=chassis.sockets[id];
+  const groups={};
+  const inSet=(q,set)=>set.some(c=>inSolid(q,c));
+  const touches=(grp,set)=>{
+    for(const p of grp)
+      for(const [q,rd] of partExtents(p)){
+        if(inSet(q,set))return true;
+        if(rd>0) for(const ax of [[rd,0,0],[-rd,0,0],[0,rd,0],[0,-rd,0],[0,0,rd],[0,0,-rd]])
+          if(inSet(V.add(q,ax),set))return true;
+      }
+    return false;
+  };
+  const shift=(p,d)=>{
+    const t=v=>[v[0]+d[0],v[1]+d[1],v[2]+d[2]];
+    for(const k of ["c","a","b"]) if(p[k])p[k]=t(p[k]);
+    if(p.pts)p.pts=p.pts.map(t);
+    if(p.pts2)p.pts2=p.pts2.map(t);
+  };
+  const chassisSolids=parts.slice();
+  const dropped=new Set();
+
+  for(const spec of SLOTS){
+    const id=spec.id, sock=chassis.sockets[id];
     if(!sock)continue;
     const list=VAR[id];
     const idx=(lock&&lock[id]!=null)?Math.min(lock[id],list.length-1):Math.floor(R()*list.length);
     const v=list[idx];
-    chosen[id]={i:idx,n:v.n,crew:v.crew||0};
+    chosen[id]={i:idx,n:v.n,crew:v.crew||0,cls:v.cls||""};
     const out=[];
     const mr=sock.sr||Math.min(chassis.sr,sock.E.y*0.8,sock.E.z*0.8);
-    v.make(builder(sock.fr,out),mr,rr,R,sock.E,probeFor(sock.fr,sock.E));
+    v.make(builder(sock.fr,out),mr,rr,R,sock.E,probeFor(sock.fr,sock.E),P);
     for(const p of out){applyOps(p,sock.fr);p.slot=true;p.g=id;p.sd=V.norm(sock.fr.f);
       if(sock.solo)p.solo=true;}
+
+    /* ---- attachment guarantee, per group, against its own parent ----
+       A variant that ends up in mid-air is drawn back along its mounting
+       direction until it bites. Dropped only if it never can. */
+    const anchor=spec.on&&groups[spec.on]&&!dropped.has(spec.on)
+      ? chassisSolids.concat(groups[spec.on]) : chassisSolids;
+    if(out.length&&!touches(out,anchor)){
+      let cen=[0,0,0];
+      for(const p of out)cen=V.add(cen,partCentroid(p));
+      cen=V.mul(cen,1/out.length);
+      const rad=Math.hypot(cen[1],cen[2]);
+      const dirs=[V.mul(V.norm(sock.fr.f),-1)];
+      if(rad>1e-6)dirs.push([0,-cen[1]/rad,-cen[2]/rad]);
+      dirs.push([cen[0]>0?-1:1,0,0]);
+      let fixed=false;
+      for(const dir of dirs){
+        const span=Math.max(rad,Math.abs(cen[0]),chassis.sr)||1;
+        const stepv=V.mul(dir,span/26);
+        for(let k2=1;k2<=30;k2++){
+          for(const p of out)shift(p,stepv);
+          if(touches(out,anchor)){fixed=true;break;}
+        }
+        if(fixed)break;
+        for(const p of out)shift(p,V.mul(stepv,-30));
+      }
+      if(!fixed){dropped.add(id);continue;}
+    }
+    groups[id]=out;
     parts.push(...out);
+    standing.push(...out);
     const f=sock.fr;
     envs.push({id,c:V.add(f.o,V.mul(f.f,sock.E.x*0.5)),
       u:V.mul(f.f,sock.E.x*0.5),v:V.mul(f.u,sock.E.y),w:V.mul(f.s,sock.E.z)});
   }
 
   /* Symmetry is a design axis, not a constant. The chassis always mirrors about
-     the centreline; what is bolted to it can instead be repeated radially, which
-     turns one wing into three fins and one leg into a tripod. Only offered where
-     the hull is actually centred on the axis — a forked spine has no axis to
-     rotate about, so it falls back to bilateral. */
+     the centreline; what is bolted to it can instead be repeated radially,
+     which turns two arms into four. Only offered where the chassis is actually
+     centred on its own axis — a split torso has no axis to rotate about. */
   const mir=p=>{
     const g=v=>[v[0],v[1],-v[2]];
     const q=Object.assign({},p);
@@ -1461,19 +1909,18 @@ function buildShip(seed,P,lock){
     if(p.c)return p.c[2];
     return (p.a[2]+p.b[2])/2;
   };
-  const rotX=(p,th)=>{
+  const rotY=(p,th)=>{
     const c=Math.cos(th),sn=Math.sin(th);
-    const g=v=>[v[0],v[1]*c-v[2]*sn,v[1]*sn+v[2]*c];
+    const g=v=>[v[0]*c-v[2]*sn,v[1],v[0]*sn+v[2]*c];
     const q=Object.assign({},p);
     for(const k of ["c","a","b","n","u","v","w","axis","sd"]) if(q[k])q[k]=g(q[k]);
     if(q.pts)q.pts=q.pts.map(g);
     if(q.pts2)q.pts2=q.pts2.map(g);
     return q;
   };
-  const radOf=p=>{const c=partCentroid(p);return Math.hypot(c[1],c[2]);};
+  const radOf=p=>{const c=partCentroid(p);return Math.hypot(c[0],c[2]);};
 
-  const forked=chassis.spine?Math.abs(chassis.spine.endOff[2])>1e-6:false;
-  const axialOK=!!topo.axial&&!forked&&nHull===1;
+  const axialOK=!!topo.axial;
   const syI=axialOK?((lock&&lock.sym!=null)?Math.min(lock.sym,SYM.length-1):Math.floor(R()*SYM.length)):0;
   chosen.sym={i:syI,n:axialOK?SYM[syI].n:"BILATERAL"};
 
@@ -1482,67 +1929,12 @@ function buildShip(seed,P,lock){
   if(syI===0){
     for(const p of slotParts) if(Math.abs(zOf(p))>1e-4){const q=mir(p);q.g=p.g+"#m";parts.push(q);}
   }else{
+    /* radial repeat is about the mech's own vertical, not a flight axis */
     const N=SYM[syI].k, thr=chassis.sr*0.25;
     for(const p of slotParts){
       if(radOf(p)<thr)continue;
-      for(let k2=1;k2<N;k2++){const q=rotX(p,k2*Math.PI*2/N);q.g=p.g+"#"+k2;parts.push(q);}
+      for(let k2=1;k2<N;k2++){const q=rotY(p,k2*Math.PI*2/N);q.g=p.g+"#"+k2;parts.push(q);}
     }
-  }
-
-  /* ---- attachment guarantee ----
-     The probe roots each variant on the surface it actually sits on. This is
-     the net under that: every bolted-on group is tested against real solids,
-     not bounding boxes, and anything not touching is drawn back along its own
-     mounting direction until it is. Dropped only if it never can be. */
-  const chassisSolids=parts.filter(p=>!p.slot);
-  const touches=grp=>{
-    for(const p of grp)
-      for(const [q,rd] of partExtents(p)){
-        if(chassisSolids.some(c=>inSolid(q,c)))return true;
-        if(rd>0){
-          for(const ax of [[rd,0,0],[-rd,0,0],[0,rd,0],[0,-rd,0],[0,0,rd],[0,0,-rd]])
-            if(chassisSolids.some(c=>inSolid(V.add(q,ax),c)))return true;
-        }
-      }
-    return false;
-  };
-  const shift=(p,d)=>{
-    const t=v=>[v[0]+d[0],v[1]+d[1],v[2]+d[2]];
-    for(const k of ["c","a","b"]) if(p[k])p[k]=t(p[k]);
-    if(p.pts)p.pts=p.pts.map(t);
-    if(p.pts2)p.pts2=p.pts2.map(t);
-  };
-  const groups={};
-  for(const p of parts) if(p.slot){(groups[p.g]=groups[p.g]||[]).push(p);}
-  const dropped=[];
-  for(const key in groups){
-    const gp=groups[key];
-    if(touches(gp))continue;
-    /* first try straight back down the mount, then radially inward */
-    const dirs=[];
-    if(gp[0].sd) dirs.push(V.mul(V.norm(gp[0].sd),-1));
-    let cen=[0,0,0],n=0;
-    for(const p of gp){cen=V.add(cen,partCentroid(p));n++;}
-    cen=V.mul(cen,1/Math.max(n,1));
-    const rad=Math.hypot(cen[1],cen[2]);
-    if(rad>1e-6)dirs.push([0,-cen[1]/rad,-cen[2]/rad]);
-    dirs.push([cen[0]>0?-1:1,0,0]);
-    let fixed=false;
-    for(const dir of dirs){
-      const span=Math.max(rad,Math.abs(cen[0]),chassis.sr)||1;
-      const stepv=V.mul(dir,span/26);
-      for(let k2=1;k2<=30;k2++){
-        for(const p of gp)shift(p,stepv);
-        if(touches(gp)){fixed=true;break;}
-      }
-      if(fixed)break;
-      for(const p of gp)shift(p,V.mul(stepv,-30));   /* rewind and try the next direction */
-    }
-    if(!fixed)dropped.push(key);
-  }
-  if(dropped.length){
-    const kill=new Set(dropped);
-    for(let i=parts.length-1;i>=0;i--) if(parts[i].slot&&kill.has(parts[i].g)) parts.splice(i,1);
   }
 
   /* registry, derived from what actually got built */
@@ -1575,27 +1967,57 @@ function buildShip(seed,P,lock){
   for(const [q,r] of pts)for(let i=0;i<3;i++){
     bb[0][i]=Math.min(bb[0][i],q[i]-r);bb[1][i]=Math.max(bb[1][i],q[i]+r);}
 
-  /* No two ships may carry the same designation, and luck is not a good enough
+  /* Build units are not metres. The ship inherited a hull-sized unit and read
+     it straight off; a mech is an order of magnitude smaller, so the drawing
+     scale and the plate would disagree by that order if this were skipped.
+     One build unit is 15.5 cm, which puts a standing humanoid at 16–19 m and
+     a light scout under 12 — and the same factor cubed turns swept volume into
+     a displacement that reads like armour over voids rather than solid steel. */
+  const U2M=0.155, RHO=0.22;
+  const height=(bb[1][1]-bb[0][1])*U2M, width=(bb[1][2]-bb[0][2])*U2M,
+        depth=(bb[1][0]-bb[0][0])*U2M;
+  const mass=vol*U2M*U2M*U2M*RHO;
+
+  /* ---- what did this turn out to be? ----
+     The role is read off the finished machine, not rolled: a drive class, a
+     mass band, and whether anything on it is a weapon. That is what picks the
+     name pool, so the plate reads back the build. */
+  const dc=(chosen.drive&&chosen.drive.cls)||"WALKER";
+  const armed=[chosen.fore,chosen.shoulder,chosen.back,chosen.chest,chosen.head]
+    .filter(Boolean).some(c=>/CANNON|RIFLE|GATLING|MISSILE|LAUNCH|TURRET|BEAM/.test(c.n));
+  const heavy=mass>92, light=mass<52;
+  let role;
+  if(dc==="SKIMMER")                          role=ROLES[6];
+  else if(!armed&&/DRILL|CLAMP|CLAW|MANIPULATOR/.test(chosen.fore?chosen.fore.n:""))
+                                              role=ROLES[dc==="WALKER"?4:5];
+  else if(dc==="TANK")                        role=ROLES[3];
+  else if(dc==="ROLLER")                      role=ROLES[heavy?3:7];
+  else if(heavy)                              role=ROLES[2];
+  else if(light)                              role=ROLES[0];
+  else                                        role=ROLES[1];
+
+  /* No two mechs may carry the same designation, and luck is not a good enough
      guarantee. The seed is a 32-bit word; read it as a mixed-radix number whose
-     digits ARE the designation — one digit names the ship, two are the yard
-     block letters, and the remainder is the pennant. Digit extraction is a
-     bijection, so the seed can be reconstructed from the name on the plate and
-     all 4,294,967,296 hulls are distinct by construction, not by odds.
-       304 names x 26 x 26 letters x 20,900 pennants > 2^32. */
-  const NB=BIRDS.length, AZ=26;
+     digits ARE the designation. Every pool is exactly 64 names long so the
+     radix is fixed no matter which pool the build lands in — that is what keeps
+     the extraction a bijection, and all 4,294,967,296 machines distinct by
+     construction rather than by odds.
+       64 names x 26 x 26 block letters x 99,273 serials > 2^32. */
+  const K=64, AZ=26, names=POOL[role.pool];
   let u=seed>>>0;
-  const name=BIRDS[u%NB];             u=(u-u%NB)/NB;
-  const b1=u%AZ;                      u=(u-b1)/AZ;
-  const b2=u%AZ;                      u=(u-b2)/AZ;
-  const block=String.fromCharCode(65+b1,65+b2), pennant=u;
-  const klass=pick(BIRDS);
-  const role = chosen.gear.i===0&&topo.n==="KEEL" ? ["OSV","ORBITAL SERVICE VEHICLE"] : topo.role;
+  const name=names[u%K];   u=(u-u%K)/K;
+  const b1=u%AZ;           u=(u-b1)/AZ;
+  const b2=u%AZ;           u=(u-b2)/AZ;
+  const block=String.fromCharCode(65+b1,65+b2), serial=u;
+  const klass=POOL[role.pool][Math.floor(R()*K)];
+
   return {parts,envs,chosen,bb,meta:{
-    desig:`${role[0]}-${block}${String(pennant).padStart(5,"0")} ${name}`,
-    klass:`${klass}-CLASS ${role[1]}`,
-    length:bb[1][0]-bb[0][0], beam:bb[1][2]-bb[0][2], height:bb[1][1]-bb[0][1],
-    mass:vol*0.21, crew:chosen.cockpit.crew, note:topo.note||"",
-    sym:chosen.sym.n, seed}};
+    desig:`${role.pre}-${block}${String(serial).padStart(5,"0")} ${name}`,
+    klass:`${klass}-CLASS ${role.kl}`,
+    length:height, beam:width, height:depth,
+    mass, crew:(chosen.head?chosen.head.crew:0)+(chosen.chest?chosen.chest.crew:0),
+    note:topo.note||"", sym:chosen.sym.n, seed,
+    drive:chosen.drive?chosen.drive.n:"—", role:role.k}};
 }
 
 /* variant post-ops: cant a fin, shift it outboard, lay it horizontal */
@@ -2343,6 +2765,13 @@ function renderSheet(t,W,H,ship,P,pal,opts){
   const bProf=viewBBox(ship,projs.profile), bPlan=viewBBox(ship,projs.plan);
   const bBow=viewBBox(ship,projs.bow);
   const shipL=Math.max(bProf.w,bPlan.w);
+  /* A hull is longer than it is tall, so its elevations stack: three wide, flat
+     drawings down one column. A mech is the other way round, and stacking two
+     portrait elevations makes the scale collapse — each one gets a third of the
+     height it needs and the sheet fills with margin. So when the subject is
+     tall, the elevations run ACROSS instead, three columns at one shared scale.
+     Same sheet, same views, transposed to the thing being drawn. */
+  const tall=bProf.h>bProf.w*1.25;
   const cells={}, sc={}, origin={};
   const boxes={profile:bProf,plan:bPlan,bow:bBow};
   const bbS=ship.bb;
@@ -2362,8 +2791,15 @@ function renderSheet(t,W,H,ship,P,pal,opts){
     const minIso=contH*0.34;
     if(contH-stackH<minIso)
       sW=Math.max(1e-6,(contH-minIso-stackFixed)/Math.max(sumH,1e-6));
+    if(tall){
+      /* transposed on a phone too, and it costs nothing: three narrow columns
+         under the pictorial suit a portrait plate better than three bands */
+      const colW=(cw-gutH*2)/3;
+      sW=Math.min((colW-inset*1.2)/Math.max(bProf.w,bBow.w,bPlan.w,1e-6),
+                  (contH*0.42-inset*2)/Math.max(bProf.h,bBow.h,1e-6));
+    }
     scale=sW;
-    stackH=sumH*scale+stackFixed;
+    stackH=tall?(Math.max(bProf.h,bBow.h,bPlan.h)*scale+inset*2+gutV):(sumH*scale+stackFixed);
     const isoNeed=isoHgt*((cw-inset*1.1)/Math.max(isoDiag,1e-6))+inset*2;
     let isoH=Math.max(minIso,Math.min(contH-stackH,isoNeed));
     /* both columns are width-bound, so share any slack instead of pooling it */
@@ -2371,33 +2807,58 @@ function renderSheet(t,W,H,ship,P,pal,opts){
     isoH+=slack;
     cells.iso={x:m,y:chTop,w:cw,h:isoH};
     let y=chTop+isoH+gutV;
-    for(const key of ["profile","plan","bow"]){
+    if(tall){
+      const colW=(cw-gutH*2)/3, rowH=Math.max(contH-isoH-gutV*2,U*0.2);
+      ["bow","profile","plan"].forEach((key,i)=>{
+        cells[key]={x:m+i*(colW+gutH),y,w:colW,h:rowH};});
+    }else for(const key of ["profile","plan","bow"]){
       const hh=boxes[key].h*scale+inset*2+slack;
       cells[key]={x:m,y,w:cw,h:hh};
       y+=hh+gutV;
     }
   }else{
     /* wide: the pictorial takes the larger panel, full height */
-    const rightW=cw*0.56, leftW=cw-rightW-gutH, rx=m+leftW+gutH;
-    const bowShare=contH*0.24, rem=contH-gutV*2-bowShare;
-    scale=Math.min((leftW-inset*2)/Math.max(shipL,1e-6),
-                   (rem-inset*4)/Math.max(bProf.h+bPlan.h,1e-6));
-    const rP=bProf.h*scale+inset*2, rN=bPlan.h*scale+inset*2;
-    cells.profile={x:m,y:chTop,w:leftW,h:rP};
-    cells.plan={x:m,y:chTop+rP+gutV,w:leftW,h:rN};
-    cells.bow={x:m,y:chTop+rP+rN+gutV*2,w:leftW,
-               h:Math.max(contH-(rP+rN+gutV*2),U*0.12)};
-    cells.iso={x:rx,y:chTop,w:rightW,h:contH};
+    const rightW=cw*(tall?0.40:0.56), leftW=cw-rightW-gutH, rx=m+leftW+gutH;
+    if(tall){
+      /* Equal columns would size every view to the widest of them, and a plan
+         of a standing machine is a footprint — a third of the width of its own
+         front elevation. Give each column the width its drawing actually needs
+         and the shared scale rises by about a third, which is the difference
+         between elevations that fill the sheet and elevations that float in it. */
+      const order=["bow","profile","plan"], rowH=contH-gutV;
+      const pad2=inset*1.2, gap=gutH*0.6;
+      const sumW=bBow.w+bProf.w+bPlan.w;
+      scale=Math.min((leftW-gap*2-pad2*3)/Math.max(sumW,1e-6),
+                     (rowH-inset*2)/Math.max(bProf.h,bBow.h,bPlan.h,1e-6));
+      const wOf=k=>boxes[k].w*scale+pad2;
+      let x=m+Math.max(0,(leftW-(wOf("bow")+wOf("profile")+wOf("plan")+gap*2))/2);
+      for(const key of order){cells[key]={x,y:chTop,w:wOf(key),h:rowH};x+=wOf(key)+gap;}
+    }else{
+      const bowShare=contH*0.24, rem=contH-gutV*2-bowShare;
+      scale=Math.min((leftW-inset*2)/Math.max(shipL,1e-6),
+                     (rem-inset*4)/Math.max(bProf.h+bPlan.h,1e-6));
+      const rP=bProf.h*scale+inset*2, rN=bPlan.h*scale+inset*2;
+      cells.profile={x:m,y:chTop,w:leftW,h:rP};
+      cells.plan={x:m,y:chTop+rP+gutV,w:leftW,h:rN};
+      cells.bow={x:m,y:chTop+rP+rN+gutV*2,w:leftW,
+                 h:Math.max(contH-(rP+rN+gutV*2),U*0.12)};
+    }
+    /* transposed, the pictorial cell reaches further right than it used to and
+       its caption would land under the title block. Give the caption its own
+       line back by ending the cell a label short of the band. */
+    cells.iso={x:rx,y:chTop,w:rightW,h:tall?contH-labelH*0.9:contH};
   }
 
-  sc.profile=sc.plan=scale;
-  sc.bow=Math.min(scale,(cells.bow.w-inset*2)/Math.max(bBow.w,1e-6),
-                        (cells.bow.h-inset*2)/Math.max(bBow.h,1e-6));
+  sc.profile=sc.plan=sc.bow=scale;
+  if(!tall)
+    sc.bow=Math.min(scale,(cells.bow.w-inset*2)/Math.max(bBow.w,1e-6),
+                          (cells.bow.h-inset*2)/Math.max(bBow.h,1e-6));
   for(const key of ["profile","plan","bow"]){
     const c=cells[key],bx=boxes[key],k=sc[key];
     origin[key]={ox:c.x+(c.w-bx.w*k)/2-bx.x*k,oy:c.y+(c.h+bx.h*k)/2+bx.y*k};
   }
-  origin.plan.ox=origin.profile.ox;
+  /* stacked elevations share a datum; transposed ones each get their own */
+  if(!tall)origin.plan.ox=origin.profile.ox;
   boxes.iso=viewBBox(ship,projs.iso);
   {
     const ci=cells.iso;
@@ -2414,15 +2875,24 @@ function renderSheet(t,W,H,ship,P,pal,opts){
   };
   for(const key of ["profile","plan","bow","iso"]){
     const c=cells[key],o=origin[key];
-    if(key==="profile"||key==="plan")
-      t.path([[c.x+inset*0.3,o.oy],[c.x+c.w-inset*0.3,o.oy]],ink,lw*0.6,cdash);
-    if(key==="bow")
-      t.path([[o.ox,c.y+inset*0.3],[o.ox,c.y+c.h-inset*0.3]],ink,lw*0.6,cdash);
+    /* a centre line belongs to the drawing, not to the cell it sits in. On the
+       stacked sheet those were the same width; transposed, a full-height cell
+       would run the datum a storey past the top of the machine. */
+    if(key!=="iso"){
+      const bx=boxes[key],kk=sc[key];
+      const x0=c.x+(c.w-bx.w*kk)/2, y0=c.y+(c.h-bx.h*kk)/2, pad2=inset*(tall?0.5:0.3);
+      if(key==="profile"||key==="plan")
+        t.path([[tall?x0-pad2:c.x+pad2,o.oy],[tall?x0+bx.w*kk+pad2:c.x+c.w-pad2,o.oy]],ink,lw*0.6,cdash);
+      else
+        t.path([[o.ox,tall?y0-pad2:c.y+pad2],[o.ox,tall?y0+bx.h*kk+pad2:c.y+c.h-pad2]],ink,lw*0.6,cdash);
+    }
     drawView(t,ship,projs[key],sc[key],o.ox,o.oy,pal,lw,reveal,opts.env&&key!=="iso",
              key,key==="iso"?`${opts.yaw},${opts.pitch},${k}`:`${k}`,
              key==="iso"&&opts.tone!==false);
-    let tx={profile:"PROFILE — STARBOARD ELEVATION",plan:"PLAN",
-            bow:"BOW ELEVATION",iso:"PICTORIAL"}[key];
+    /* three columns cannot carry the stacked sheet's caption widths */
+    let tx=(tall?{profile:"SIDE — STBD",plan:"PLAN",bow:"FRONT",iso:"PICTORIAL"}
+                :{profile:"SIDE ELEVATION — STARBOARD",plan:"PLAN",
+                  bow:"FRONT ELEVATION",iso:"PICTORIAL"})[key];
     if(key==="bow"&&Math.abs(sc.bow/scale-1)>0.04)
       tx+="  ×"+(sc.bow/scale).toFixed(2);
     label(c,tx);
@@ -2456,17 +2926,17 @@ function renderSheet(t,W,H,ship,P,pal,opts){
     T(M.desig,bxx+pad,byy+bh*0.28,bh*0.215,bh*0.016,700,lw1);
     T(M.klass,bxx+pad,byy+bh*0.45,bh*0.092,bh*0.011,500,lw1);
     const sp=ship.chosen.recipeShort||ship.chosen.recipe||ship.chosen.topo.n;
-    const cfg=sp+"   "+["cockpit","wing","tail","booster","gear"]
-      .map((s2,j)=>"CWTBG"[j]+(ship.chosen[s2].i+1)).join(" · ")
+    const cfg=sp+"   "+["head","shoulder","fore","back","waist","drive"]
+      .map((s2,j)=>"HSFBWD"[j]+((ship.chosen[s2]?ship.chosen[s2].i:0)+1)).join(" · ")
       +(ship.meta.sym!=="BILATERAL"?"   "+ship.meta.sym:"")
       +(ship.meta.note?"   "+ship.meta.note:"");
     T(cfg,bxx+pad,byy+bh*0.60,bh*0.092,bh*0.011,500,lw1);
-    T("ORBITAL YARD",bxx+bw-pad,byy+bh*0.26,bh*0.115,bh*0.018,600,rw1,"end");
-    T("HULL "+M.seed,bxx+bw-pad,byy+bh*0.44,bh*0.115,bh*0.018,500,rw1,"end");
+    T("MECH YARD",bxx+bw-pad,byy+bh*0.26,bh*0.115,bh*0.018,600,rw1,"end");
+    T("FRAME "+M.seed,bxx+bw-pad,byy+bh*0.44,bh*0.115,bh*0.018,500,rw1,"end");
     T("SHEET 1 OF 1",bxx+bw-pad,byy+bh*0.61,bh*0.095,bh*0.014,500,rw1,"end");
 
-    const cols=[["LENGTH",M.length.toFixed(1)+" M"],["BEAM",M.beam.toFixed(1)+" M"],
-                ["HEIGHT",M.height.toFixed(1)+" M"],["DRY",Math.round(M.mass)+" T"],
+    const cols=[["HEIGHT",M.length.toFixed(1)+" M"],["WIDTH",M.beam.toFixed(1)+" M"],
+                ["DEPTH",M.height.toFixed(1)+" M"],["DRY",Math.round(M.mass)+" T"],
                 ["CREW",M.crew?String(M.crew):"NIL"]];
     cols.forEach((c,i)=>{
       const cx=bxx+pad+(bw-pad*2)*i/5;
@@ -2490,34 +2960,40 @@ const PALETTES=[
   {id:"sulphur",bg:"#E5C132",ink:"#161310"},
   {id:"slate",bg:"#1A1A1C",ink:"#C6CACE"}
 ];
-const SLOT_IDS=["cockpit","wing","tail","booster","gear"];
 const SECN=[{n:"2 SECTIONS"},{n:"3 SECTIONS"},{n:"4 SECTIONS"}];
-/* adv rows are the ones that describe how a hull is put together — real
-   controls, but not what anyone touches first, so they sit behind the fold */
-const ROWS=[{id:"topo",label:"Hull",list:TOPO},
-  {id:"hulls",label:"Hulls",list:HULLN},
+/* Chassis and drive lead, because between them they decide what the machine
+   IS. The torso-column rows are real controls but nobody reaches for them
+   first, so they sit behind the fold with the symmetry axis. */
+/* the rail's label column is one word wide; anything longer collides with the
+   value, so these are the one-word names for each parting line */
+const LABEL={neck:"neck",head:"head",chest:"chest",back:"backpack",
+  shoulder:"shoulder",upper:"humerus",fore:"forearm",waist:"skirt",
+  hip:"girdle",drive:"drive",aux:"aux"};
+const ROWS=[{id:"topo",label:"Chassis",list:TOPO},
+  {id:"drive",label:"Drive",list:VAR.drive},
   {id:"sym",label:"Symmetry",list:SYM,adv:true},
-  {id:"nsec",label:"Chain",list:SECN,adv:true},
-  {id:"fore",label:"Fore",list:SECT,adv:true},
-  {id:"joint",label:"Joint",list:JOINT,adv:true},
-  {id:"aft",label:"Aft",list:SECT,adv:true}]
-  .concat(SLOT_IDS.map(id=>({id,label:id,list:VAR[id]})));
+  {id:"nsec",label:"Torso",list:SECN,adv:true},
+  {id:"tlo",label:"Abdomen",list:SECT,adv:true},
+  {id:"joint",label:"Coupling",list:JOINT,adv:true},
+  {id:"thi",label:"Chest",list:SECT,adv:true}]
+  .concat(SLOT_IDS.filter(id=>id!=="drive").map(id=>({id,label:LABEL[id],list:VAR[id]})));
 /* mulberry32 is seeded by a 32-bit word, so that whole word is the design
-   space — 4.29 billion hulls, not the five-digit slice the roll used to take.
-   The pennant number on the drawing stays four digits; the hull number is the
-   serial, and a serial is allowed to be long. */
+   space — 4.29 billion frames. The serial on the plate is a bijection of that
+   word (see buildMech), so the number in this box and the name on the drawing
+   are two spellings of the same thing. */
 const SEED_MAX=4294967296;
 const newSeed=()=>Math.floor(Math.random()*SEED_MAX);
 const normSeed=v=>{v=Math.floor(Math.abs(v));return isFinite(v)?v%SEED_MAX:1;};
 const S={seed:newSeed(),
   fuse:0.5,detail:0.6,line:1.0,pal:0,block:true,env:false,spin:true,tone:true,
-  lock:{topo:null,hulls:null,sym:null,nsec:null,fore:null,joint:null,aft:null,cockpit:null,wing:null,tail:null,booster:null,gear:null},
+  lock:Object.assign({topo:null,sym:null,nsec:null,tlo:null,thi:null,joint:null},
+    SLOT_IDS.reduce((a,id)=>(a[id]=null,a),{})),
   yaw:-0.62,pitch:0.34};
-/* A phone's plate is tall and narrow; a ship is long and flat. Held at the
-   desktop's shallow pitch it draws a thin band across the middle with half the
-   plate empty either side of it. Looking further down the hull turns length
-   into height and fills the frame. */
-if(matchMedia("(max-width:820px)").matches)S.pitch=0.62;
+/* A phone's plate is tall and narrow, and so is a mech — which is the one
+   place this drawing is easier to place than a hull was. Flatten the pitch on
+   a phone instead of steepening it: looking level at a standing machine fills
+   a portrait plate, looking down at it does not. */
+if(matchMedia("(max-width:820px)").matches)S.pitch=0.18;
 const DEF={yaw:S.yaw,pitch:S.pitch};
 
 /* one breakpoint, shared by the stylesheet and the renderer, so the sheet the
@@ -2581,12 +3057,12 @@ function readout(){
      only needs to say which ship this is and how big it came out */
   document.getElementById("readout").innerHTML=
     `<div class="desig">${M.desig}</div>`+
-    `<div class="line">${M.length.toFixed(1)} &times; ${M.beam.toFixed(1)}`+
+    `<div class="line">${M.length.toFixed(1)} m tall &middot; ${M.beam.toFixed(1)}`+
     ` &times; ${M.height.toFixed(1)} m</div>`+
-    `<div class="line">${Math.round(M.mass)} t &middot; crew ${M.crew||"nil"}</div>`;
+    `<div class="line">${Math.round(M.mass)} t &middot; ${M.drive} &middot; crew ${M.crew||"nil"}</div>`;
 }
 function regenerate(animate){
-  ship=buildShip(S.seed,params(),S.lock);
+  ship=buildMech(S.seed,params(),S.lock);
   readout();renderSlots();
   if(animate&&!reduced){
     cancelAnimationFrame(raf);
@@ -2629,8 +3105,8 @@ function renderSlots(){
   let chains=0;
   for(let n=2;n<=4;n++) chains+=Math.pow(SECT.length,n)*Math.pow(JOINT.length,n-1);
   let chassis=0;
-  for(const t of TOPO) chassis+=(t.spine?chains:1)*(t.axial?SYM.length:1);
-  const total=chassis*slots*HULLN.length;
+  for(const t of TOPO) chassis+=chains*(t.axial?SYM.length:1);
+  const total=chassis*slots;
   el("combos").textContent="· "+(total>=1e9?(total/1e9).toFixed(1)+"B":total.toLocaleString())+" base";
 }
 function bind(id,valId,get,set,fmt,rebuild){
