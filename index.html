@@ -156,6 +156,10 @@ button[aria-pressed="false"].tog{color:var(--dim)}
   color:var(--dim);border:1px solid var(--rule);
   transition:border-color .12s ease,color .12s ease}
 .social a:hover{border-color:var(--ink);color:var(--ink)}
+/* the sister yard spans the pair above them and is deliberately quieter — it
+   is a door to somewhere else, not a third call to action */
+.social .sib{grid-column:1/-1;border-style:dashed;color:var(--dim);letter-spacing:.16em}
+.social .sib:hover{border-style:solid}
 
 /* everything that is a second thought lives behind one disclosure */
 .more{border-top:1px solid var(--rule);padding-top:14px;
@@ -314,6 +318,8 @@ canvas{display:block;width:100%;height:100%}
     </div>
 
     <div class="social">
+      <a class="sib" href="https://johnbr0phy.github.io/orbital-yard/"
+         target="_blank" rel="noopener">Orbital Yard &mdash; ships &#8599;</a>
       <a href="https://github.com/johnbr0phy/mech-yard"
          target="_blank" rel="noopener">Star on GitHub</a>
       <a href="https://x.com/JohnBr0" target="_blank" rel="noopener">Follow @JohnBr0</a>
