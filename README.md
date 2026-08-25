@@ -125,6 +125,29 @@ got the most care: pistons flank every joint, ribbed conduit runs between plates
 toothed ring at every axis of rotation, and bolt circles and louvre stacks come
 from the same kit everywhere they appear.
 
+### Rigging
+
+A variant is authored blind. The forearm does not know a backpack exists, the
+yoke does not know what chassis it landed on, and neither can run a cable to the
+other because neither can see it — so every loom inside the variant library is a
+loop that starts and ends on the same part. Decoration, not plumbing.
+
+Once the machine is assembled that constraint is gone, so a final pass looks at
+the finished object and asks a question no variant can: **what is near what?**
+It runs conduit *between* groups along a table of routes that a real machine
+would follow — pack to yoke, yoke to humerus, girdle to drive — bolts a boss
+where each run lands, adds plug sockets and panel fittings on the surfaces with
+room for them, and clamps the slack down.
+
+It runs *after* the mirror, so the port side gets its own routing. Two identical
+arms still come out rigged differently, which is where most of a frame's
+individuality now comes from. Every run starts from a point already on a
+surface, so nothing the pass adds can float; the sag is pushed out along both
+surface normals, because a run that dips inward is correctly hidden by the
+hidden-line pass and was never worth drawing.
+
+About a third of the parts on a finished machine are rigging.
+
 ### Nothing floats
 
 Every socket is checked against the thing it hangs off, and anything in mid-air

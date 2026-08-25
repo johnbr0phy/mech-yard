@@ -2463,6 +2463,185 @@ const TOPO=[
 const DRIVEN=[{n:"—"}];
 const SYM=[{n:"BILATERAL",k:2},{n:"TRILATERAL",k:3},{n:"QUADRILATERAL",k:4}];
 
+/* ===================== rigging =====================
+   The polish pass, and the reason it is a pass and not part of the library:
+   a variant is authored blind. The forearm does not know a backpack exists, the
+   yoke does not know what chassis it landed on, and neither can run a cable to
+   the other because neither can see it. Every loom in the variants is therefore
+   a loop that starts and ends on the same part — decoration, not plumbing.
+
+   By the time the machine is assembled that constraint is gone. Every part is
+   placed, mirrored, attached and final, so this pass can look at the actual
+   finished object and ask a question no variant can: what is near what? Then it
+   runs conduit BETWEEN groups, bolts a plug where each run lands, and clamps
+   the slack down — which is what turns eleven separately-authored assemblies
+   into one machine that was wired up by somebody.
+
+   It also runs AFTER the mirror, so the port side gets its own routing. Two
+   identical arms still come out rigged differently, which is most of where a
+   frame's individuality now comes from.
+
+   Everything here starts from a point already on a surface, so nothing this
+   pass adds can float. */
+
+/* the runs worth making, in preference order — power and feed follow the same
+   paths on a real machine that they do on a drawing */
+const RUNS=[
+  ["back","shoulder",2],["back","shoulderL",2],["back","neck",1],["back","head",1],
+  ["shoulder","upper",2],["shoulderL","upperL",2],
+  ["upper","fore",2],["upperL","foreL",2],
+  ["chest","neck",1],["chest","shoulder",1],["chest","shoulderL",1],
+  ["waist","hip",2],["hip","drive",3],["waist","drive",1],
+  ["aux","back",1],["aux","chest",1],["neck","head",1],
+  ["back","waist",1],["chassis","drive",2],["chassis","back",1]
+];
+
+/* a bolt circle in world space — GK's version builds in a socket frame, and
+   this pass has no frame to build in */
+function GKbolt(out,c,n,r,N,br){
+  const [bu,bv]=basis(n);
+  for(let i=0;i<N;i++){
+    const a=i/N*Math.PI*2+0.3;
+    out.push(SPH(V.add(c,V.add(V.mul(bu,Math.cos(a)*r),V.mul(bv,Math.sin(a)*r))),br,{rig:true}));
+  }
+}
+function rigMech(parts,R,rr,P,sr){
+  const q=P&&P.detail!=null?P.detail:0.6;
+  const out=[];
+  const pick=a=>a[Math.floor(R()*a.length)|0];
+
+  /* one bounding sphere per part, so "is this point buried?" only ever tests
+     the handful of parts that could possibly contain it */
+  const S=parts.map(p=>{
+    const ex=partExtents(p); let c=[0,0,0],n=0,r=0;
+    for(const [z] of ex){c=V.add(c,z);n++;}
+    c=V.mul(c,1/Math.max(n,1));
+    for(const [z,rd] of ex) r=Math.max(r,V.len(V.sub(z,c))+(rd||0));
+    return {c,r};
+  });
+  const buried=(z,own)=>{
+    for(let i=0;i<parts.length;i++){
+      if(i===own)continue;
+      if(V.len(V.sub(z,S[i].c))>S[i].r)continue;
+      if(inSolid(z,parts[i]))return true;
+    }
+    return false;
+  };
+
+  /* a bank of exposed points per group, sampled rather than exhaustive */
+  const bank={};
+  const step=Math.max(1,Math.floor(parts.length/220));
+  for(let i=0;i<parts.length;i+=step){
+    const p=parts[i], g=(p.g||"chassis").replace(/#.*/,"");
+    const ex=partExtents(p);
+    /* One anchor per part spreads the bank evenly by COUNT, which is the wrong
+       measure: a torso is three enormous parts and a greeble field is forty
+       tiny ones, so the big surfaces — the ones with room for fittings — ended
+       up bare while the clutter got wired to death. Anchors scale with size. */
+    const want=S[i].r>sr*0.62?4:S[i].r>sr*0.28?2:1;
+    let took=0;
+    /* and stride through the extents rather than taking the first few — a
+       lathe lists its points station by station, so the first four are all on
+       the bottom ring and every fitting ends up round the machine's ankles */
+    const jump=Math.max(1,Math.floor(ex.length/(want+1)));
+    for(let j=0;j<ex.length&&took<want;j+=jump){
+      const z=ex[j][0];
+      if(buried(z,i))continue;
+      (bank[g]=bank[g]||[]).push({z,n:V.len(V.sub(z,S[i].c))>1e-6
+        ?V.norm(V.sub(z,S[i].c)):[0,1,0],big:S[i].r>sr*0.5});
+      took++;
+    }
+  }
+
+  /* ---- conduit ---- */
+  const maxLen=sr*2.6;             /* long runs would cut straight through the body */
+  const cable=(a,b,r,n)=>{
+    const d=V.len(V.sub(b.z,a.z));
+    /* pull the middle down and away, so it hangs instead of pointing */
+    /* the sag is pushed OUT along both surface normals as well as down: a run
+       that dips inward disappears behind the plate it started on, and hidden
+       line removal is doing its job when it hides it. Conduit is only worth
+       drawing where it can be seen. */
+    const mid=V.add(V.mul(V.add(a.z,b.z),0.5),
+      V.add([0,-d*rr(0.14,0.30),0],V.mul(V.norm(V.add(a.n,b.n)),d*rr(0.20,0.42))));
+    const at=t=>{const u=1-t;
+      return [u*u*a.z[0]+2*u*t*mid[0]+t*t*b.z[0],
+              u*u*a.z[1]+2*u*t*mid[1]+t*t*b.z[1],
+              u*u*a.z[2]+2*u*t*mid[2]+t*t*b.z[2]];};
+    for(let i=0;i<n;i++){
+      const p0=at(i/n), p1=at((i+0.88)/n);
+      out.push(CAP(p0,p1,r*(i%2?0.76:1),{rig:true}));
+    }
+    /* the boss each end lands in, and its collar */
+    for(const e of [a,b]){
+      const o=V.add(e.z,V.mul(e.n,r*0.4));
+      out.push(LTH(V.sub(o,V.mul(e.n,r*1.5)),e.n,
+        [[0,r*2.0],[r*0.9,r*2.2],[r*2.1,r*1.5],[r*2.6,r*1.25]],
+        {rings:[1,2],mer:6},{rig:true}));
+      out.push(DSC(V.add(o,V.mul(e.n,r*1.1)),e.n,r*1.55,r*0.9,{rig:true}));
+    }
+  };
+
+  const nRun=Math.round(7+17*q);
+  const runs=RUNS.filter(([a,b])=>bank[a]&&bank[b]);
+  let made=0;
+  for(let guard=0;guard<nRun*6&&made<nRun;guard++){
+    const [ga,gb,w]=pick(runs);
+    if(R()>Math.min(1,w*0.5))continue;
+    const A=pick(bank[ga]), B=pick(bank[gb]);
+    const d=V.len(V.sub(A.z,B.z));
+    if(d<sr*0.14||d>maxLen)continue;
+    cable(A,B,sr*rr(0.075,0.145),Math.max(5,Math.round(5+d/sr*3)));
+    made++;
+  }
+
+  /* ---- plug sockets: a receptacle with nothing in it says the machine comes
+     apart, which is half of why a technical drawing reads as a machine ---- */
+  const all=[].concat(...Object.values(bank));
+  const wide=all.filter(e=>e.big);
+  const nSock=Math.round(4+11*q);
+  for(let i=0;i<nSock&&all.length;i++){
+    /* two fittings in three go on a big surface, because that is where a
+       fitting would go and where there is room to read it */
+    const e=pick(wide.length&&R()<0.66?wide:all), r=sr*rr(0.085,0.155);
+    const o=V.add(e.z,V.mul(e.n,r*0.2));
+    out.push(LTH(V.sub(o,V.mul(e.n,r*0.8)),e.n,
+      [[0,r*1.35],[r*0.6,r*1.5],[r*1.5,r*1.4]],{rings:[1],mer:8},{rig:true}));
+    out.push(DSC(V.add(o,V.mul(e.n,r*0.75)),e.n,r*1.32,r*0.72,{rig:true}));
+    const [bu,bv]=basis(e.n);
+    const N=3+((R()*3)|0);
+    for(let j=0;j<N;j++){
+      const a2=j/N*Math.PI*2+R();
+      const s2=V.add(o,V.add(V.mul(bu,Math.cos(a2)*r*0.86),V.mul(bv,Math.sin(a2)*r*0.86)));
+      out.push(TUB(s2,V.add(s2,V.mul(e.n,r*0.55)),r*0.17,r*0.15,{rig:true}));
+    }
+  }
+
+  /* ---- panel fittings: a raised pad on a bolt circle. Not plumbing — the
+     mark a plate leaves when it is designed to come off, which is what makes a
+     large bare surface read as armour rather than as a blank. ---- */
+  const nPad=Math.round(3+10*q);
+  for(let i=0;i<nPad&&wide.length;i++){
+    const e=pick(wide), r=sr*rr(0.11,0.22);
+    const o=V.add(e.z,V.mul(e.n,r*0.06));
+    out.push(LTH(V.sub(o,V.mul(e.n,r*0.5)),e.n,
+      [[0,r*0.98],[r*0.42,r],[r*0.66,r*0.86]],{rings:[1],mer:8},{rig:true}));
+    GKbolt(out,V.add(o,V.mul(e.n,r*0.18)),e.n,r*0.74,4+((R()*4)|0),r*0.10);
+    out.push(DSC(V.add(o,V.mul(e.n,r*0.2)),e.n,r*0.5,r*0.22,{rig:true}));
+  }
+
+  /* ---- clamps: the brackets that stop all of the above swinging ---- */
+  const nClamp=Math.round(3+9*q);
+  for(let i=0;i<nClamp&&all.length;i++){
+    const e=pick(all), r=sr*rr(0.075,0.135);
+    const [bu]=basis(e.n);
+    const a=V.sub(e.z,V.mul(bu,r*1.1)), b=V.add(e.z,V.mul(bu,r*1.1));
+    out.push(TUB(a,b,r*0.42,r*0.42,{rig:true}));
+    out.push(DSC(V.add(e.z,V.mul(e.n,r*0.3)),e.n,r*0.7,r*0.3,{rig:true}));
+  }
+  return out;
+}
+
 /* ===================== build =====================
    Order matters here in a way it never did for a ship. A hull's sockets all
    land on the hull, so they could be filled in any order; a mech's arm is a
@@ -2773,6 +2952,10 @@ function buildMech(seed,P,lock){
       for(let k2=1;k2<N;k2++){const q=rotY(p,k2*Math.PI*2/N);q.g=p.g+"#"+k2;parts.push(q);}
     }
   }
+
+  /* The layout is final here — placed, attached, mirrored — which is the first
+     moment anything can see the whole machine. Rig it. */
+  parts.push(...rigMech(parts,R,rr,P,chassis.sr));
 
   /* registry, derived from what actually got built */
   let vol=0;const pts=[];
