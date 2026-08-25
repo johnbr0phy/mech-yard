@@ -3,6 +3,8 @@
 A procedural mech general-arrangement drawing, generated in the browser from a
 seed. One self-contained HTML file, no build step, no dependencies.
 
+**[Open it →](https://johnbr0phy.github.io/mech-yard/)**
+
 ## What it does
 
 Every machine is assembled from a slot contract rather than drawn. A chassis
