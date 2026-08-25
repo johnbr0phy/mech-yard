@@ -23,6 +23,24 @@ place the mech would actually come apart in a maintenance bay:
 | `drive` | everything below the hip |
 | `aux` | the free greeble socket |
 
+**The shoulders carry the width.** Held to the torso's own half-width they make
+something tall and narrow, which is not what a mech looks like — the yokes are
+supposed to be the widest thing on it, and the arms are supposed to come down
+out from *under* them rather than off the sides of the ribs. The allowance runs
+to about two and a half torso radii, and the yoke library fills it: the variants
+were only using half to three quarters of whatever they were given, so widening
+the envelope alone would have changed nothing.
+
+The humerus is then hung well below the yoke and left to the attachment
+guarantee, which drags along the mounting axis — upward, for an arm. Too little
+drop and it starts inside the pauldron; too much and it is pulled up until it
+meets the underside. The join is found rather than specified.
+
+And once the yokes are broad, a head perched above them looks stuck on, so it
+sinks by however far the yokes reach up the torso: a chassis carrying its
+shoulders at collar height gets a head down between the pads, one carrying them
+at mid-chest keeps its neck.
+
 **The arms are handed.** Everything else is bilateral and the mirror pass gives
 that away for free, but a mirror can only ever build a machine holding two of
 the same thing — and one close-combat arm beside one ranged arm is not a

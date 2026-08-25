@@ -935,7 +935,7 @@ back:[
    outboard face rather than leaving the arm socket showing. ---- */
 shoulder:[
 {n:"PAULDRON",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.55,0.8), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.83,0.98), h=E.y*0.5, d=E.z*0.5;
    B.tube([-mr*0.6,0,0],[w*0.3,0,0],mr*1.0,mr*0.9,{hideA:true,det:hullDet([0.5],[],[])});
    GK.gear(B,[w*0.34,0,0],"x",mr*0.8,14);
    B.panel([[w*0.3,-d*0.9],[w*0.3,d*0.9],[w*1.05,d*0.6],[w*1.05,-d*0.7]],h*1.5,
@@ -945,7 +945,7 @@ shoulder:[
    GK.bolts(B,[w*0.36,0,0],"x",mr*0.66,8);
  }},
 {n:"BLOCK",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.81,0.94), h=E.y*0.5, d=E.z*0.5;
    FORM.block(B,[w*0.5,0,0],w*0.5,h*0.85,d*0.85,{hideA:true,det:{ribs:3,line:0.7}});
    FORM.block(B,[w*1.0,0,0],w*0.12,h*0.6,d*0.6,{det:{ribs:2,line:0.85}});
    GK.vent(B,[w*0.55,h*0.9,0],w*0.4,h*0.08,d*0.6,5,"x");
@@ -953,7 +953,7 @@ shoulder:[
    GK.hinge(B,[w*0.16,0,0],"x",mr*0.7,rr);
  }},
 {n:"GATLING DRUM",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.6,0.85), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.86,1.0), h=E.y*0.5, d=E.z*0.5;
    B.tube([-mr*0.5,0,0],[w*0.35,0,0],mr*1.0,h*0.7,{hideA:true});
    B.tube([w*0.35,h*0.2,0],[w*0.95,h*0.2,0],h*0.72,h*0.66,
           {det:hullDet([0.3,0.6,0.85],[0.4,1.6,2.9,4.2,5.5],[])});
@@ -966,7 +966,7 @@ shoulder:[
    GK.hose(B,[w*0.2,-h*0.5,-d*0.4],[w*0.75,-h*0.45,-d*0.1],h*0.1,5);
  }},
 {n:"MISSILE BOX",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.5,0.75), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.81,0.95), h=E.y*0.5, d=E.z*0.5;
    B.tube([-mr*0.5,0,0],[w*0.28,0,0],mr*1.0,mr*0.85,{hideA:true});
    FORM.block(B,[w*0.62,h*0.35,0],w*0.36,h*0.6,d*0.85,{det:{ribs:2,line:0.7}});
    const ny=GK.n(3), nz=GK.n(4);
@@ -979,7 +979,7 @@ shoulder:[
    GK.piston(B,[w*0.3,h*0.7,-d*0.3],[w*0.8,h*0.85,-d*0.1],mr*0.13);
  }},
 {n:"SPIKED CAP",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.45,0.68), h=E.y*0.5;
+   const w=E.x*rr(0.79,0.93), h=E.y*0.5;
    B.tube([-mr*0.5,0,0],[w*0.3,0,0],mr*1.0,h*0.8,{hideA:true});
    B.ball([w*0.5,0,0],h*0.92,{det:hullDet([0.3,0.55,0.8],[],[])});
    const N=GK.n(5);
@@ -989,7 +989,7 @@ shoulder:[
    GK.gear(B,[w*0.3,0,0],"x",h*0.68,12);
  }},
 {n:"OPEN GIMBAL",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.42,0.62), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.78,0.9), h=E.y*0.5, d=E.z*0.5;
    B.tube([-mr*0.6,0,0],[w*0.2,0,0],mr*1.05,mr*0.7,{hideA:true});
    /* no armour at all: a ring, its ram pair, and the loom feeding the arm */
    for(const s of [-1,1]) B.tube([w*0.2,s*h*0.75,0],[w*0.85,s*h*0.5,0],mr*0.2,mr*0.16,
@@ -1000,7 +1000,7 @@ shoulder:[
    GK.hose(B,[w*0.15,0,-d*0.6],[w*0.85,0,-d*0.25],mr*0.13,7);
  }},
 {n:"CYCLONE",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.81,0.94), h=E.y*0.5, d=E.z*0.5;
    B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[w*0.2,mr*1.05],[w*0.42,mr*0.92]],
      hullDet([0.4,0.8],[],[]),{hideA:true});
    FORM.block(B,[w*0.5,0,0],w*0.42,h*0.7,d*0.7,{chamfer:0.66,det:{ribs:3,line:0.72}});
@@ -1011,7 +1011,7 @@ shoulder:[
    WPN.feed(B,[w*0.14,-h*0.4,d*0.3],[w*0.5,h*0.5,d*0.2],mr*0.13);
  }},
 {n:"TWIN MOUNT",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.81,0.94), h=E.y*0.5, d=E.z*0.5;
    B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[w*0.22,mr*1.06],[w*0.44,mr*0.9]],
      hullDet([0.4,0.8],[],[]),{hideA:true});
    GK.gear(B,[w*0.48,h*0.7,0],"y",mr*0.6,12);
@@ -1021,7 +1021,7 @@ shoulder:[
    WPN.feed(B,[w*0.2,-h*0.3,-d*0.3],[w*0.5,h*0.7,-d*0.2],mr*0.13);
  }},
 {n:"LAUNCH RAIL",make(B,mr,rr,R,E,probe,P){
-   const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
+   const w=E.x*rr(0.81,0.94), h=E.y*0.5, d=E.z*0.5;
    FORM.block(B,[w*0.45,0,0],w*0.45,h*0.6,d*0.6,{hideA:true,det:{ribs:3,line:0.75}});
    B.tube([w*0.6,h*0.75,-d*1.1],[w*0.6,h*0.75,d*1.1],h*0.09,h*0.09);
    for(let i=0;i<GK.n(3);i++)
@@ -2319,7 +2319,7 @@ function mechSockets(c,parts,rr,R,P,lock){
      while the torso above it scaled freely, so a broad machine ended up
      balanced on a narrow girdle, and legs sized to fit between those hips came
      out as spindles. Legs stand under the body, not under the socket. */
-  const peak=TR*Math.max(prof(0.80),prof(1))*c.wid, capW=TH*0.42;
+  const peak=TR*Math.max(prof(0.80),prof(1))*c.wid, capW=TH*0.46;
   const wid=peak>capW?c.wid*(capW/peak):c.wid;
   const hipW=Math.max(c.hipW,TR*wid*1.30);
   /* And the yoke has to sit ON the shoulder. Capping the torso moved the body
@@ -2339,7 +2339,15 @@ function mechSockets(c,parts,rr,R,P,lock){
      rather than a number that has to agree with it. */
   const shR=TR*wid*prof(Math.max(0,Math.min(1,shY/TH)));
   const shZ=shR*0.94;
-  const yokeL=Math.max(TR*0.95,Math.min(c.shZ,shR*1.9)-shZ);
+  /* The yokes carry the machine's width. Held to a torso's own half-width they
+     make something tall and narrow, which is not what a mech looks like — the
+     shoulders are supposed to be the widest thing on it, and the arms are
+     supposed to come down out from UNDER them rather than off the sides of the
+     ribs. The allowance goes out to about two and a half torso radii, and the
+     yoke library was rewritten to actually use it: the variants were only
+     filling half to three quarters of whatever they were given, so widening
+     the envelope alone would have changed nothing. */
+  const yokeL=Math.max(TR*1.45,Math.min(c.shZ*1.35,shR*2.5)-shZ);
   const auxR=TR*wid*prof(Math.max(0,Math.min(1,auxY/TH)));
   const auxZ=auxR*0.96;
   const torso=composeTorso(0,TH,TR,rr,R,P,parts,lock,{prof,dep,wid});
@@ -2357,7 +2365,12 @@ function mechSockets(c,parts,rr,R,P,lock){
      has to look like it means it. Coming down to ~0.95 puts it at 8-9% of
      standing height, which is where the mobile-suit sheets put it and where a
      silhouette stops reading as a mascot. */
-  S.head=FR([leanX*TH,TH+neckH*0.84,0],up,fore,star,
+  /* and once the yokes are broad, a head perched above them looks stuck on.
+     Sink it by however far the yokes reach up the torso: a chassis carrying its
+     shoulders at collar height gets a head down between the pads, one carrying
+     them at mid-chest keeps its neck. */
+  const sink=neckH*Math.max(0,Math.min(0.85,(shY/TH-0.72)*3.2));
+  S.head=FR([leanX*TH,TH+neckH*0.84-sink,0],up,fore,star,
             {x:TR*0.98,y:TR*dep*0.80,z:TR*wid*0.74});
   S.chest=FR([leanX*chestY+TR*dep*prof(chestY/TH)*0.9,chestY,0],fore,up,star,
              {x:TR*dep*0.8,y:TH*0.34,z:TR*wid*1.5});
@@ -2367,9 +2380,14 @@ function mechSockets(c,parts,rr,R,P,lock){
   /* the arm hangs from 0.68 of the way out along whatever yoke got fitted, so
      the humerus is always inside the pauldron rather than beyond its edge */
   const armZ=shZ+yokeL*0.68;
-  S.upper=FR([leanX*shY,shY-TR*0.55,armZ],down,fore,star,
+  /* Hang the arm well below the yoke and let the attachment guarantee pull it
+     back up — it drags along the mounting axis, which for a humerus is upward
+     toward the pad. Give it too little drop and the arm starts inside the
+     pauldron; give it too much and it is drawn up until it meets the underside,
+     which is exactly the join we want and is found rather than specified. */
+  S.upper=FR([leanX*shY,shY-TR*0.98,armZ],down,fore,star,
              {x:armL,y:armR*1.2,z:armR*1.2},false,armR);
-  S.fore=FR([leanX*shY,shY-TR*0.55-armL*0.84,armZ],down,fore,star,
+  S.fore=FR([leanX*shY,shY-TR*0.98-armL*0.84,armZ],down,fore,star,
             {x:foreL,y:armR*1.15,z:armR*1.15},false,armR*0.9);
   S.waist=FR([leanX*waistY,waistY,0],down,fore,star,
              {x:TH*0.4,y:TR*dep*1.2,z:TR*wid*1.5},false,TR*prof(waistY/TH)*0.9);
