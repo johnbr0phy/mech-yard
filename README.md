@@ -35,8 +35,26 @@ quadruped, spider, octopod, tripod, tracked, wheeled and hover** all bolt to the
 same girdle, and all nine walking and rolling classes share one articulation kit,
 so a spider's third knee is put together like a biped's only knee.
 
-Detail is a property of the machine rather than of whichever variant got the most
-care: pistons flank every joint, ribbed conduit runs between plates, there is a
+### Heads
+
+The head is 8% of the machine and carries most of its character, so it gets its
+own foundry. Three rules, taken off the mobile-suit sheets rather than invented:
+
+1. **Helmet and face are separate volumes.** The cranium sits *behind* the socket
+   axis; the faceplate stands proud of it, narrower, stepped in three bands.
+   The shadow gap between them is what stops a head reading as a box.
+2. **The jaw tapers and comes forward.** A skull the same width at the chin as at
+   the temples is a carton.
+3. **Antennae sweep** — up, out and back. Vertical prongs are the single most
+   cardboard thing a head can do.
+
+Eight marks: **V-FIN, MONO-EYE, VISOR, MASK, CREST, SENSOR DRUM, CUPOLA,
+TURRET** — sharing one kit of crown, faceplate, eyes, jaw, cheek pods and ear
+vents, so the cheek pod on a mono-eye is the cheek pod on a V-fin and the
+machines look related even when their faces do not.
+
+Detail elsewhere is a property of the machine rather than of whichever variant
+got the most care: pistons flank every joint, ribbed conduit runs between plates, there is a
 toothed ring at every axis of rotation, and bolt circles and louvre stacks come
 from the same kit everywhere they appear.
 

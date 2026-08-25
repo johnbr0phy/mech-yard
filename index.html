@@ -520,75 +520,151 @@ neck:[
  }}
 ],
 /* ---- head: local x = up, y = fore, z = starboard ----
-   A head is small, so it is where line density has to be highest or the mech
-   reads as headless at sheet scale. Every variant carries a sensor with a real
-   aperture, a jaw or chin block, and at least one antenna. ---- */
+   A head is 8% of the machine and carries most of its character, so this is
+   the one library where silhouette beats part count. Three rules, taken off
+   the mobile-suit sheets rather than invented:
+
+     1. HELMET AND FACE ARE SEPARATE VOLUMES. The crown is a tapered shell; the
+        faceplate is narrower, set into it, and stops short of the crown's edge.
+        The shadow gap between the two is what stops a head reading as a box —
+        it is doing the work a visor painted on a cube never can.
+     2. THE JAW TAPERS AND COMES FORWARD. A skull that is the same width at the
+        chin as at the temples is a carton. Every variant here narrows.
+     3. ANTENNAE SWEEP. A blade antenna rakes up, out and BACK — the samurai
+        helmet the V-fin was drawn from has no straight prongs on it. Vertical
+        sticks are the single most cardboard thing a head can do.
+
+   The recurring pieces live in HEAD below, so every variant is built by the
+   same foundry — the cheek pod on a mono-eye is the cheek pod on a Gundam. ---- */
 head:[
-{n:"VISOR",crew:1,make(B,mr,rr,R,E,probe,P){
-   const h=E.x*rr(0.7,0.95), w=E.z*0.5, d=E.y*0.5;
-   B.box([-mr*0.2,0,0],mr*0.5,d*0.5,w*0.6,{hideA:true});
-   B.box([h*0.5,0,0],h*0.42,d*0.86,w*0.86,{det:{ribs:3,line:0.7}});
-   B.box([h*0.46,d*0.9,0],h*0.16,d*0.16,w*0.7,{det:{ribs:5,line:0.8}});
-   B.tube([h*0.46,d*0.98,-w*0.6],[h*0.46,d*0.98,w*0.6],h*0.1,h*0.1,{det:hullDet([0.5],[],[])});
-   B.box([h*0.16,d*0.7,0],h*0.14,d*0.3,w*0.5);
-   GK.vent(B,[h*0.7,-d*0.7,0],h*0.2,d*0.2,w*0.6,4,"x");
-   for(const s of [-1,1]) B.cap([h*0.86,0,s*w*0.8],[h*1.5,-d*0.3,s*w*1.0],h*0.05);
-   GK.bolts(B,[h*0.5,0,w*0.88],"z",h*0.3,6);
+{n:"V-FIN",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.86,1.0), w=E.z*0.5, d=E.y*0.5;
+   HEAD.plug(B,mr,h,w);
+   HEAD.crown(B,h,w,d,rr,{back:true});
+   HEAD.face(B,h,w,d,rr,{inset:0.62});
+   HEAD.eyes(B,h,w,d,"twin");
+   HEAD.jaw(B,h,w,d,rr,{vent:true});
+   HEAD.cheeks(B,h,w,d,rr,{guns:true});
+   HEAD.ears(B,h,w,d);
+   /* the fin: two blades raked up-out-back off the brow, a shorter centre
+      blade between them, and the sensor disc they are all anchored to */
+   for(const s of [-1,1]){
+     B.tube([h*0.80,d*0.30,s*w*0.16],[h*1.06,d*0.16,s*w*0.52],w*0.16,w*0.09);
+     B.tube([h*1.06,d*0.16,s*w*0.52],[h*1.44,-d*0.34,s*w*0.86],w*0.09,w*0.012);
+   }
+   B.tube([h*0.82,d*0.34,0],[h*1.18,d*0.02,0],w*0.13,w*0.03);
+   B.disc([h*0.80,d*0.44,0],[0,1,0],w*0.19,w*0.07);
+   B.tube([h*0.78,d*0.36,0],[h*0.78,d*0.46,0],w*0.22,w*0.20);
  }},
 {n:"MONO-EYE",crew:1,make(B,mr,rr,R,E,probe,P){
-   const h=E.x*rr(0.62,0.85), w=E.z*0.5;
-   B.tube([-mr*0.2,0,0],[h*0.2,0,0],mr*0.6,w*0.8,{hideA:true});
-   B.cap([h*0.3,0,0],[h*0.78,0,0],w*0.9,{det:hullDet([0.35,0.7],[0.4,3.5],[])});
-   /* the rail the eye tracks along is the whole point of the variant */
-   B.tube([h*0.52,w*0.6,-w*0.95],[h*0.52,w*0.6,w*0.95],w*0.2,w*0.2);
-   B.ball([h*0.52,w*0.78,rr(-w*0.5,w*0.5)],w*0.26);
-   B.disc([h*0.52,w*0.98,0],[0,1,0],w*0.16,w*0.06);
-   B.box([h*0.9,0,0],h*0.1,w*0.5,w*0.5,{det:{ribs:3,line:0.8}});
-   B.cap([h*0.95,-w*0.2,w*0.3],[h*1.6,-w*0.6,w*0.5],h*0.05);
-   GK.hose(B,[h*0.2,-w*0.7,w*0.4],[h*0.7,-w*0.5,w*0.6],w*0.1,4);
+   const h=E.x*rr(0.78,0.92), w=E.z*0.5, d=E.y*0.5;
+   HEAD.plug(B,mr,h,w);
+   /* no faceplate at all — one shell, and the whole face is the slit the eye
+      runs in. The rounded crown is what reads as Zeon rather than Federation. */
+   B.cap([h*0.34,-d*0.10,0],[h*0.80,-d*0.02,0],w*0.94,
+         {det:hullDet([0.3,0.55,0.8],[0.4,2.3,4.0],[])});
+   B.tube([h*0.28,0,0],[h*0.44,d*0.04,0],w*0.86,w*0.96,{det:hullDet([0.5],[],[])});
+   HEAD.slit(B,h,w,d,rr);
+   HEAD.jaw(B,h,w,d,rr,{vent:false});
+   HEAD.ears(B,h,w,d);
+   /* the pipe run down the back of the skull, which is half the Zaku read */
+   for(const s of [-1,1]) GK.hose(B,[h*0.28,-d*0.5,s*w*0.5],[h*0.72,-d*0.72,s*w*0.34],w*0.11,5);
+   if(R()<0.5) B.tube([h*0.86,-d*0.1,0],[h*1.34,-d*0.42,0],w*0.16,w*0.02);
+   else for(const s of [-1,1]) B.tube([h*0.80,-d*0.1,s*w*0.3],[h*1.16,-d*0.5,s*w*0.5],w*0.1,w*0.02);
  }},
-{n:"TWIN-CAM",crew:1,make(B,mr,rr,R,E,probe,P){
-   const h=E.x*rr(0.65,0.9), w=E.z*0.5, d=E.y*0.5;
-   B.box([-mr*0.2,0,0],mr*0.5,d*0.5,w*0.6,{hideA:true});
-   B.box([h*0.46,0,0],h*0.4,d*0.8,w*0.8,{det:{ribs:2,line:0.75}});
+{n:"VISOR",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.82,0.96), w=E.z*0.5, d=E.y*0.5;
+   HEAD.plug(B,mr,h,w);
+   HEAD.crown(B,h,w,d,rr,{back:false});
+   HEAD.face(B,h,w,d,rr,{inset:0.74});
+   HEAD.eyes(B,h,w,d,"band");
+   HEAD.jaw(B,h,w,d,rr,{vent:true});
+   HEAD.cheeks(B,h,w,d,rr,{guns:false});
+   HEAD.ears(B,h,w,d);
+   B.tube([h*0.84,d*0.14,w*0.18],[h*1.26,-d*0.30,w*0.44],w*0.11,w*0.02);
+   B.tube([h*0.84,d*0.10,-w*0.30],[h*1.02,-d*0.16,-w*0.44],w*0.09,w*0.03);
+ }},
+{n:"MASK",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.8,0.94), w=E.z*0.5, d=E.y*0.5;
+   HEAD.plug(B,mr,h,w);
+   HEAD.crown(B,h,w,d,rr,{back:true});
+   /* a full plate over the whole face and a sensor buried behind it — the
+      menace comes from having no features to read at all */
+   B.tube([h*0.26,d*0.30,0],[h*0.86,d*0.30,0],w*0.78,w*0.52,
+          {det:hullDet([0.28,0.56,0.84],[],[])});
+   B.disc([h*0.62,d*0.62,0],[0.1,1,0],w*0.46,w*0.16);
+   B.tube([h*0.58,d*0.52,0],[h*0.58,d*0.72,0],w*0.2,w*0.14);
+   HEAD.jaw(B,h,w,d,rr,{vent:true});
    for(const s of [-1,1]){
-     B.tube([h*0.5,d*0.6,s*w*0.42],[h*0.5,d*1.05,s*w*0.42],w*0.24,w*0.2,
-            {det:hullDet([0.5],[],[])});
-     B.disc([h*0.5,d*1.06,s*w*0.42],[0,1,0],w*0.19,w*0.09);
+     GK.vent(B,[h*0.6,d*0.1,s*w*0.86],h*0.2,d*0.24,w*0.06,4,"x");
+     B.tube([h*0.72,-d*0.2,s*w*0.7],[h*1.1,-d*0.5,s*w*0.9],w*0.1,w*0.02);
    }
-   B.box([h*0.12,d*0.75,0],h*0.12,d*0.25,w*0.42,{det:{ribs:4,line:0.8}});
-   B.cap([h*0.85,0,-w*0.7],[h*1.55,-d*0.2,-w*0.95],h*0.05);
-   GK.vent(B,[h*0.6,-d*0.85,0],h*0.22,d*0.1,w*0.55,5,"x");
+   HEAD.ears(B,h,w,d);
  }},
-{n:"TURRET",crew:1,make(B,mr,rr,R,E,probe,P){
-   const h=E.x*rr(0.6,0.82), w=E.z*0.5;
-   GK.gear(B,[0,0,0],"x",w*0.9,14);
-   B.tube([-mr*0.2,0,0],[h*0.7,0,0],w*0.85,w*0.7,{hideA:true,det:hullDet([0.4,0.75],[0.5,3.9],[])});
-   B.disc([h*0.72,0,0],[1,0,0],w*0.72,w*0.3);
-   /* a head that is a weapon mount, not a face */
-   GK.barrel(B,[h*0.4,w*0.2,0],[h*0.4,w*1.9,0],w*0.2);
-   GK.barrel(B,[h*0.62,w*0.2,w*0.4],[h*0.62,w*1.4,w*0.4],w*0.12);
-   GK.bolts(B,[h*0.74,0,0],"x",w*0.55,8);
+{n:"CREST",crew:1,make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.9,1.05), w=E.z*0.5, d=E.y*0.5;
+   HEAD.plug(B,mr,h,w);
+   HEAD.crown(B,h,w,d,rr,{back:true});
+   HEAD.face(B,h,w,d,rr,{inset:0.58});
+   HEAD.eyes(B,h,w,d,"twin");
+   HEAD.jaw(B,h,w,d,rr,{vent:true});
+   HEAD.cheeks(B,h,w,d,rr,{guns:true});
+   HEAD.ears(B,h,w,d);
+   /* command variant: a tall centre blade and two pairs of raked antennae,
+      because the machine that is talking to the others should look like it */
+   B.panel([[h*0.72,-w*0.05],[h*0.72,w*0.05],[h*1.55,w*0.03],[h*1.42,-w*0.03]],d*0.9,
+           {det:{ribs:3,line:0.8},cant:Math.PI/2});
+   B.tube([h*0.80,d*0.24,0],[h*1.5,-d*0.12,0],w*0.12,w*0.02);
+   for(const s of [-1,1]){
+     B.tube([h*0.78,d*0.20,s*w*0.34],[h*1.24,-d*0.30,s*w*0.74],w*0.10,w*0.02);
+     B.tube([h*0.68,d*0.06,s*w*0.62],[h*0.96,-d*0.44,s*w*0.94],w*0.08,w*0.02);
+   }
+   B.disc([h*0.78,d*0.40,0],[0,1,0],w*0.17,w*0.06);
  }},
-{n:"SNOUT",crew:1,make(B,mr,rr,R,E,probe,P){
-   const h=E.x*rr(0.55,0.78), w=E.z*0.5, d=E.y*0.5;
-   B.box([-mr*0.2,0,0],mr*0.5,d*0.5,w*0.6,{hideA:true});
-   B.panel([[h*0.14,-w*0.8],[h*0.14,w*0.8],[h*0.8,w*0.5],[h*0.8,-w*0.5]],d*1.5,
-           {det:{ribs:4,line:0.7}});
-   B.box([h*0.3,d*1.0,0],h*0.3,d*0.5,w*0.55,{det:{ribs:3,line:0.75}});
-   B.tube([h*0.3,d*1.4,-w*0.3],[h*0.3,d*1.4,w*0.3],h*0.09,h*0.09);
-   GK.clutter(B,[h*0.55,-d*0.6,0],h*0.2,d*0.3,w*0.5,rr,5);
-   for(const s of [-1,1]) B.cap([h*0.8,0,s*w*0.5],[h*1.4,d*0.2,s*w*0.75],h*0.045);
+{n:"SENSOR DRUM",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.62,0.8), w=E.z*0.5, d=E.y*0.5;
+   HEAD.plug(B,mr,h,w);
+   /* the machines that are not pretending to be people get no face: a drum of
+      apertures on a gimbal, and the gimbal is the only thing that moves */
+   GK.gear(B,[h*0.26,0,0],"x",w*0.6,12);
+   B.tube([h*0.3,0,-w*0.9],[h*0.3,0,w*0.9],w*0.16,w*0.16);
+   B.tube([h*0.62,0,-w*0.72],[h*0.62,0,w*0.72],w*0.68,w*0.68,
+          {det:hullDet([0.3,0.7],[0.4,1.8,3.1,4.4,5.7],[])});
+   for(let i=0;i<Math.max(3,GK.n(5));i++){
+     const a=i/Math.max(3,GK.n(5))*Math.PI*2;
+     B.tube([h*0.62+Math.cos(a)*w*0.4,Math.sin(a)*w*0.4,w*0.72],
+            [h*0.62+Math.cos(a)*w*0.4,Math.sin(a)*w*0.4,w*0.94],w*0.15,w*0.13);
+   }
+   B.disc([h*0.62,0,w*0.74],[0,0,1],w*0.62,w*0.24);
+   GK.bolts(B,[h*0.62,0,-w*0.74],"z",w*0.5,8);
+   B.tube([h*0.9,-d*0.2,0],[h*1.3,-d*0.5,0],w*0.09,w*0.02);
  }},
 {n:"CUPOLA",crew:2,make(B,mr,rr,R,E,probe,P){
-   const h=E.x*rr(0.5,0.7), w=E.z*0.55;
-   B.tube([-mr*0.2,0,0],[h*0.3,0,0],w*0.95,w*0.9,{hideA:true,det:hullDet([0.5],[],[])});
-   B.ball([h*0.62,0,0],w*0.86,{det:hullDet([0.3,0.55,0.8],[],[])});
+   const h=E.x*rr(0.66,0.82), w=E.z*0.55, d=E.y*0.5;
+   HEAD.plug(B,mr,h,w);
+   B.tube([h*0.2,0,0],[h*0.46,d*0.06,0],w*0.94,w*0.9,{det:hullDet([0.5],[],[])});
    /* glazing reads as a band of longitudinal cuts round the dome */
-   B.tube([h*0.5,0,0],[h*0.78,0,0],w*0.9,w*0.78,{det:hullDet([0.5],[0.3,1.2,2.1,3.0,3.9,4.8],[])});
-   B.disc([h*1.0,0,0],[1,0,0],w*0.42,w*0.14);
-   GK.bolts(B,[h*0.32,0,0],"x",w*0.8,12);
-   B.cap([h*0.9,0,w*0.5],[h*1.5,-w*0.2,w*0.8],h*0.05);
+   B.ball([h*0.68,d*0.04,0],w*0.86,{det:hullDet([0.3,0.55,0.8],[],[])});
+   B.tube([h*0.56,d*0.04,0],[h*0.84,d*0.04,0],w*0.9,w*0.78,
+          {det:hullDet([0.5],[0.3,1.2,2.1,3.0,3.9,4.8],[])});
+   B.tube([h*0.5,d*0.5,0],[h*0.72,d*0.9,0],w*0.3,w*0.2);
+   B.disc([h*0.72,d*0.92,0],[0.3,1,0],w*0.2,w*0.08);
+   GK.bolts(B,[h*0.28,0,0],"x",w*0.82,12);
+   HEAD.ears(B,h,w,d);
+   B.tube([h*0.92,-d*0.2,w*0.3],[h*1.32,-d*0.5,w*0.5],w*0.08,w*0.02);
+ }},
+{n:"TURRET",make(B,mr,rr,R,E,probe,P){
+   const h=E.x*rr(0.62,0.8), w=E.z*0.5, d=E.y*0.5;
+   GK.gear(B,[0,0,0],"x",w*0.9,16);
+   B.tube([-mr*0.2,0,0],[h*0.62,0,0],w*0.88,w*0.74,
+          {hideA:true,det:hullDet([0.35,0.7],[0.5,3.9],[])});
+   B.disc([h*0.64,0,0],[1,0,0],w*0.76,w*0.3);
+   /* a head that is a mount, not a face — but the mantlet still tapers */
+   B.tube([h*0.34,d*0.2,0],[h*0.34,d*0.9,0],w*0.5,w*0.34,{det:hullDet([0.4],[],[])});
+   GK.barrel(B,[h*0.34,d*0.5,0],[h*0.34,d*2.3,0],w*0.2);
+   GK.barrel(B,[h*0.52,d*0.4,w*0.44],[h*0.52,d*1.7,w*0.44],w*0.11);
+   GK.bolts(B,[h*0.66,0,0],"x",w*0.58,8);
+   HEAD.ears(B,h,w,d);
  }}
 ],
 /* ---- chest: local x = fore, y = up, z = starboard ----
@@ -1329,6 +1405,118 @@ const LEG={
     }
   }
 };
+/* ===================== head kit =====================
+   The pieces every head is cut from. Having them here rather than inside each
+   variant is what makes eight heads read as eight marks of one product instead
+   of eight different toys: the cheek pod on a mono-eye is the cheek pod on a
+   V-fin, so the machines look related even when their faces do not.
+   Frame throughout: x up, y fore, z starboard. h is full height, w and d are
+   HALF width and HALF depth — the same convention the variants use. */
+const HEAD={
+  /* the buried neck stub. Rule 1 of the socket contract, and it also gives the
+     crown something to be seated on rather than floating above the collar */
+  plug(B,mr,h,w){
+    B.tube([-mr*0.4,0,0],[h*0.24,0,0],mr*1.0,w*0.78,
+           {hideA:true,det:hullDet([0.5],[],[])});
+    GK.bolts(B,[h*0.22,0,0],"x",w*0.66,8);
+  },
+  /* The cranium — and note where its axis sits: BACK, at -0.26d. That one
+     number is most of the fix. A skull centred on the socket is as deep as it
+     is wide, so a faceplate set into it disappears inside it and the head goes
+     back to being a lump. Sit the cranium behind the axis and the whole front
+     of the envelope is left free for a face to stand proud of it.
+     Widest at the temples, tapering both ways — up to the crown, down to the
+     jaw. Two opposed cones cost what one box costs and read as machined. */
+  crown(B,h,w,d,rr,o){
+    o=o||{};
+    const yc=-d*0.26;
+    B.tube([h*0.24,yc*0.7,0],[h*0.58,yc,0],w*0.76,w*0.98,
+           {det:hullDet([0.4,0.8],[0.5,2.4,4.0],[])});
+    B.tube([h*0.58,yc,0],[h*0.90,yc*1.2,0],w*0.98,w*0.52,
+           {det:hullDet([0.3,0.6,0.85],[0.5,2.4,4.0],[])});
+    /* the brow ledge the face is set back under, and the reason the eyes read
+       as recessed rather than painted on */
+    B.box([h*0.72,d*0.16,0],h*0.05,d*0.42,w*0.82,{det:{ribs:3,line:0.75}});
+    B.box([h*0.88,yc*0.9,0],h*0.05,d*0.56,w*0.07,{det:{ribs:2,line:0.85}});
+    if(o.back){
+      B.cap([h*0.48,-d*0.72,0],[h*0.76,-d*0.52,0],w*0.50,
+            {det:hullDet([0.35,0.7],[],[])});
+      GK.vent(B,[h*0.62,-d*0.94,0],h*0.10,d*0.06,w*0.34,4,"x");
+    }
+  },
+  /* The faceplate: narrower than the cranium, standing well forward of it, and
+     stepped in three bands — brow, cheek, chin — so it reads as a mask cut from
+     plate rather than a cylinder. The step at each band is the shadow line. */
+  face(B,h,w,d,rr,o){
+    const iw=w*(o&&o.inset!=null?o.inset:0.64);
+    const yf=d*0.46;
+    B.tube([h*0.70,yf*0.86,0],[h*0.58,yf,0],iw*0.94,iw,
+           {det:hullDet([0.45],[],[])});
+    B.tube([h*0.58,yf,0],[h*0.42,yf*1.02,0],iw,iw*0.82,
+           {det:hullDet([0.4,0.8],[],[])});
+    B.tube([h*0.42,yf*1.02,0],[h*0.30,yf*0.92,0],iw*0.82,iw*0.50,
+           {det:hullDet([0.5],[],[])});
+    B.box([h*0.50,yf*1.10,0],h*0.16,d*0.06,iw*0.80,{det:{ribs:4,line:0.75}});
+  },
+  /* two trapezoid lenses either side of a nose ridge, or one full-width band.
+     Both sit on the FRONT of the faceplate, not on the axis. */
+  eyes(B,h,w,d,kind){
+    const yf=d*0.46, iw=w*0.64;
+    B.box([h*0.60,yf*1.02,0],h*0.05,d*0.16,w*0.58,{det:{ribs:2,line:0.85}});
+    if(kind==="band"){
+      B.tube([h*0.60,yf+iw*0.9,-w*0.52],[h*0.60,yf+iw*0.9,w*0.52],h*0.05,h*0.05,
+             {det:hullDet([0.5],[0.4,2.2,3.9],[])});
+      B.disc([h*0.60,yf+iw*1.0,0],[0,1,0],h*0.055,h*0.02);
+    }else{
+      for(const s of [-1,1]){
+        B.tube([h*0.60,yf+iw*0.62,s*w*0.30],[h*0.60,yf+iw*1.02,s*w*0.30],w*0.19,w*0.15);
+        B.disc([h*0.60,yf+iw*1.04,s*w*0.30],[0,1,0],w*0.14,w*0.05);
+      }
+      B.box([h*0.58,yf+iw*0.86,0],h*0.08,d*0.12,w*0.055,{det:{ribs:2,line:0.85}});
+    }
+  },
+  /* The chin. It juts forward and narrows — a flat one is a carton bottom. */
+  jaw(B,h,w,d,rr,o){
+    B.tube([h*0.34,d*0.40,0],[h*0.19,d*0.56,0],w*0.52,w*0.30,
+           {det:hullDet([0.4,0.8],[],[])});
+    B.box([h*0.26,d*0.66,0],h*0.06,d*0.14,w*0.30,{det:{ribs:3,line:0.8}});
+    if(o&&o.vent) GK.vent(B,[h*0.29,d*0.78,0],h*0.07,d*0.05,w*0.26,4,"x");
+  },
+  /* temple pods, with or without the pair of muzzles that live in them */
+  cheeks(B,h,w,d,rr,o){
+    for(const s of [-1,1]){
+      B.box([h*0.56,d*0.10,s*w*0.78],h*0.14,d*0.44,w*0.15,{det:{ribs:3,line:0.75}});
+      if(o&&o.guns){
+        B.tube([h*0.58,d*0.52,s*w*0.78],[h*0.58,d*0.92,s*w*0.78],w*0.09,w*0.07);
+        B.disc([h*0.58,d*0.93,s*w*0.78],[0,1,0],w*0.07,w*0.03);
+      }
+    }
+  },
+  /* side vents on the axis the head turns about */
+  ears(B,h,w,d){
+    for(const s of [-1,1]){
+      B.tube([h*0.56,-d*0.24,s*w*0.84],[h*0.56,-d*0.24,s*w*1.00],w*0.27,w*0.23,
+             {det:hullDet([0.5],[],[])});
+      B.disc([h*0.56,-d*0.24,s*w*1.01],[0,0,s],w*0.22,w*0.09);
+      GK.bolts(B,[h*0.56,-d*0.24,s*w*1.02],"z",w*0.16,6);
+    }
+  },
+  /* The mono-eye: a slit cut across the whole face and one lens riding a rail
+     inside it, parked wherever this machine happened to be looking. The slit
+     has to be cut into a raised band or the eye floats on a smooth shell. */
+  slit(B,h,w,d,rr){
+    const yb=d*0.30;
+    B.tube([h*0.68,yb*0.9,0],[h*0.50,yb,0],w*0.86,w*0.84,
+           {det:hullDet([0.5],[],[])});
+    B.box([h*0.59,yb+w*0.72,0],h*0.11,d*0.10,w*0.66,{det:{ribs:2,line:0.85}});
+    B.tube([h*0.59,yb+w*0.80,-w*0.66],[h*0.59,yb+w*0.80,w*0.66],w*0.05,w*0.05);
+    const z=rr(-w*0.46,w*0.46);
+    B.tube([h*0.59,yb+w*0.70,z],[h*0.59,yb+w*0.96,z],w*0.19,w*0.16,
+           {det:hullDet([0.5],[],[])});
+    B.disc([h*0.59,yb+w*0.98,z],[0,1,0],w*0.15,w*0.06);
+    B.box([h*0.71,yb+w*0.52,0],h*0.05,d*0.20,w*0.76,{det:{ribs:4,line:0.75}});
+  }
+};
 
 /* Is a point inside a solid? Bounding boxes were lying: an armour skirt's box
    overlaps a leg that is nowhere near its curved underside. Every attachment
@@ -1609,8 +1797,12 @@ function mechSockets(c,parts,rr,R,P,lock){
   const up=[0,1,0], fore=[1,0,0], star=[0,0,1], down=[0,-1,0];
   const S={};
   S.neck=FR([leanX*TH,TH,0],up,fore,star,{x:neckH,y:TR*dep*0.9,z:TR*wid*0.9});
+  /* A head at 1.5 torso radii is a third again bigger than any machine that
+     has to look like it means it. Coming down to ~0.95 puts it at 8-9% of
+     standing height, which is where the mobile-suit sheets put it and where a
+     silhouette stops reading as a mascot. */
   S.head=FR([leanX*TH,TH+neckH*0.84,0],up,fore,star,
-            {x:TR*1.5,y:TR*dep*1.15,z:TR*wid*1.15});
+            {x:TR*0.98,y:TR*dep*0.80,z:TR*wid*0.74});
   S.chest=FR([leanX*chestY+TR*dep*prof(chestY/TH)*0.9,chestY,0],fore,up,star,
              {x:TR*dep*0.8,y:TH*0.34,z:TR*wid*1.5});
   S.back=FR([leanX*backY-TR*dep*prof(backY/TH)*0.85,backY,0],[-1,0,0],up,star,
@@ -2988,7 +3180,11 @@ const S={seed:newSeed(),
   fuse:0.5,detail:0.6,line:1.0,pal:0,block:true,env:false,spin:true,tone:true,
   lock:Object.assign({topo:null,sym:null,nsec:null,tlo:null,thi:null,joint:null},
     SLOT_IDS.reduce((a,id)=>(a[id]=null,a),{})),
-  yaw:-0.62,pitch:0.34};
+  /* The hull's default quarter looked at its stern, which for a ship is where
+     the interesting end is. A mech's interesting end is its face, and yaw is
+     signed the other way for it: a negative yaw here parks the camera behind
+     the machine and every head in the library renders as a blank helmet. */
+  yaw:0.95,pitch:0.30};
 /* A phone's plate is tall and narrow, and so is a mech — which is the one
    place this drawing is easier to place than a hull was. Flatten the pitch on
    a phone instead of steepening it: looking level at a standing machine fills
