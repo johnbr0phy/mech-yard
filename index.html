@@ -28,12 +28,17 @@ body{margin:0;background:var(--ground);color:var(--ink);overflow:hidden;
   font-family:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
 .wrap{display:grid;grid-template-columns:322px minmax(0,1fr);height:100vh;height:100dvh;overflow:hidden}
 
+/* The rail itself no longer scrolls — the option list inside it does. When the
+   whole column scrolled, the credits at its foot scrolled with it, so the one
+   thing that should always be reachable was the one thing you had to go looking
+   for past fifteen steppers. Button at the top, list in the middle taking
+   whatever height is left, credits pinned at the bottom. */
 .rail{border-right:1px solid var(--rule);background:var(--panel);
-  padding:0 20px 26px;display:flex;flex-direction:column;gap:16px;
-  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;min-height:0}
-.rail::-webkit-scrollbar{width:9px}
-.rail::-webkit-scrollbar-thumb{background:var(--rule);border-radius:9px}
-.rail::-webkit-scrollbar-track{background:transparent}
+  padding:0 20px 0;display:flex;flex-direction:column;gap:14px;
+  overflow:hidden;min-height:0}
+.panel::-webkit-scrollbar{width:9px}
+.panel::-webkit-scrollbar-thumb{background:var(--rule);border-radius:9px}
+.panel::-webkit-scrollbar-track{background:transparent}
 .head{position:sticky;top:0;z-index:6;background:var(--panel);
   margin:0 -20px;padding:18px 20px 14px;border-bottom:1px solid var(--rule);
   display:flex;flex-direction:column;gap:12px}
@@ -99,17 +104,26 @@ button[aria-pressed="false"].tog{color:var(--dim)}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 
 /* slot steppers */
-.slot{display:grid;grid-template-columns:64px 1fr auto auto;align-items:center;
+.slot{display:grid;grid-template-columns:66px minmax(0,1fr) auto auto;align-items:center;
   gap:0;border-bottom:1px solid var(--rule)}
 .slot:last-child{border-bottom:none}
-.slot .lab{font-family:"IBM Plex Mono",monospace;font-size:9.5px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--dim)}
-.slot .cur{font-family:"Saira Condensed","Arial Narrow",sans-serif;font-weight:600;font-size:15px;
-  letter-spacing:.06em;text-transform:uppercase;padding:6px 0}
+/* the label column is fixed, so anything longer than it has to be clipped
+   rather than allowed to run into the value beside it */
+.slot .lab{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dim);padding-right:6px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.slot .cur{font-family:"Saira Condensed","Arial Narrow",sans-serif;font-weight:600;font-size:13.5px;
+  letter-spacing:.06em;text-transform:uppercase;padding:3px 0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .slot .cur.auto{color:var(--dim);font-weight:500}
-.slot button{border:none;background:none;padding:8px 8px;font-size:13px;letter-spacing:0;color:var(--dim);min-width:30px}
+.slot button{border:none;background:none;padding:4px 7px;font-size:13px;letter-spacing:0;color:var(--dim);min-width:26px}
 .slot button:hover{color:var(--ink)}
 
+/* the list reads as three short lists rather than one long one */
+.shead{font-family:"IBM Plex Mono",monospace;font-size:9px;letter-spacing:.22em;
+  text-transform:uppercase;color:var(--dim);opacity:.72;padding:11px 0 3px;
+  border-bottom:1px solid var(--rule)}
+.shead:first-child{padding-top:0}
 .swatches{display:flex;gap:8px;flex-wrap:wrap}
 .sw{width:32px;height:32px;padding:0;border:1px solid var(--rule);position:relative;cursor:pointer}
 .sw[aria-pressed="true"]{border-color:var(--ink);box-shadow:inset 0 0 0 2px var(--panel)}
@@ -128,8 +142,15 @@ button[aria-pressed="false"].tog{color:var(--dim)}
 
 /* Footer, not a pitch: the links sit under the keyboard hints, weighted the
    same as each other and lighter than anything that changes the drawing. */
-.social{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:12px}
+/* `1fr` is minmax(AUTO,1fr), and auto floors at min-content — so a link whose
+   text cannot wrap pushes its own column wider than the rail and runs off the
+   right edge of a phone. It has done since this was a ship. minmax(0,1fr) lets
+   the column actually shrink, and the anchors clip rather than push. */
+.social{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;flex:0 0 auto;
+  margin:0 -20px;padding:12px 20px calc(14px + env(safe-area-inset-bottom,0px));
+  border-top:1px solid var(--rule);background:var(--panel)}
 .social a{display:flex;align-items:center;justify-content:center;
+  min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   font-family:"IBM Plex Mono",monospace;font-size:10.5px;letter-spacing:.1em;
   text-transform:uppercase;text-decoration:none;padding:9px 6px;line-height:1;
   color:var(--dim);border:1px solid var(--rule);
@@ -159,7 +180,9 @@ button[aria-pressed="false"].tog{color:var(--dim)}
 /* grow into spare rail height so the hints still sit at the foot, but never
    shrink below the controls' own height — a squeezed panel spilled its content
    out from under the links below it */
-.panel{display:flex;flex-direction:column;gap:16px;flex:1 0 auto}
+.panel{display:flex;flex-direction:column;gap:15px;flex:1 1 auto;min-height:0;
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  margin:0 -20px;padding:0 20px 4px}
 .menu{display:none}
 .scrim{display:none}
 
@@ -199,7 +222,7 @@ canvas{display:block;width:100%;height:100%}
   .head{position:static;margin:0;padding:0;border-bottom:none;background:none;
     flex-direction:row;align-items:stretch;gap:10px}
   .cta{flex:1 1 auto;font-size:23px;padding:17px}
-  .social{padding-top:0}
+  .social{padding:0;margin:0;border-top:none;background:none}
 
   /* the options slide over the drawing rather than pushing it around */
   .menu{display:flex;align-items:center;justify-content:center;flex:0 0 58px;
@@ -4200,11 +4223,14 @@ const SECN=[{n:"2 SECTIONS"},{n:"3 SECTIONS"},{n:"4 SECTIONS"}];
    first, so they sit behind the fold with the symmetry axis. */
 /* the rail's label column is one word wide; anything longer collides with the
    value, so these are the one-word names for each parting line */
-const LABEL={neck:"neck",head:"head",chest:"chest",back:"backpack",
+const LABEL={neck:"neck",head:"head",chest:"chest",back:"pack",
   shoulder:"yoke R",upper:"arm R",fore:"fore R",
   shoulderL:"yoke L",upperL:"arm L",foreL:"fore L",
   waist:"skirt",hip:"girdle",drive:"drive",aux:"aux"};
 const VARKEY=id=>id.replace(/L$/,"");
+const SEC={topo:"Frame",drive:"Frame",
+  neck:"Body",head:"Body",chest:"Body",back:"Body",waist:"Body",hip:"Body",aux:"Body",
+  shoulder:"Arms",shoulderL:"Arms",upper:"Arms",upperL:"Arms",fore:"Arms",foreL:"Arms"};
 const ROWS=[{id:"topo",label:"Chassis",list:TOPO},
   {id:"drive",label:"Drive",list:VAR.drive},
   {id:"sym",label:"Symmetry",list:SYM,adv:true},
@@ -4213,6 +4239,10 @@ const ROWS=[{id:"topo",label:"Chassis",list:TOPO},
   {id:"joint",label:"Coupling",list:JOINT,adv:true},
   {id:"thi",label:"Chest",list:SECT,adv:true}]
   .concat(SLOT_IDS.filter(id=>id!=="drive").map(id=>({id,label:LABEL[id],list:VAR[VARKEY(id)]})));
+/* keep each section together rather than in socket-build order */
+ROWS.sort((a,b)=>{const o={Frame:0,Body:1,Arms:2};
+  const x=a.adv?3:o[SEC[a.id]]??3, y=b.adv?3:o[SEC[b.id]]??3;
+  return x-y;});
 /* mulberry32 is seeded by a 32-bit word, so that whole word is the design
    space — 4.29 billion frames. The serial on the plate is a bijection of that
    word (see buildMech), so the number in this box and the name on the drawing
@@ -4319,8 +4349,15 @@ const el=id=>document.getElementById(id);
 function renderSlots(){
   const wraps={main:el("slots"),adv:el("slotsMore")};
   wraps.main.innerHTML="";wraps.adv.innerHTML="";
+  let sec=null;
   for(const row of ROWS){
     const wrap=row.adv?wraps.adv:wraps.main;
+    if(!row.adv&&SEC[row.id]&&SEC[row.id]!==sec){
+      sec=SEC[row.id];
+      const hd=document.createElement("div");
+      hd.className="shead";hd.textContent=sec;
+      wrap.appendChild(hd);
+    }
     const id=row.id,list=row.list,locked=S.lock[id]!=null;
     const cur=ship?ship.chosen[id]:{i:0,n:list[0].n};
     const el2=document.createElement("div");
