@@ -366,9 +366,116 @@ function builder(fr,out){
         u:D(hx,0,0),v:D(0,hy,0),w:D(0,0,hz)},o||{})),
     /* pts are [span, chord] in the frame's x–z plane; pts[0]→pts[1] is the root edge */
     panel:(pts,th,o)=>push(Object.assign({k:"panel",pts:pts.map(p=>L(p[0],0,p[1])),
-        n:V.norm(D(0,1,0)),th,skipSide:0},o||{}))
+        n:V.norm(D(0,1,0)),th,skipSide:0},o||{})),
+    /* The body of revolution, finally handed to the variants. The renderer has
+       always known how to draw one — silhouette by hull, real stations, proper
+       meridians, elliptical cross-sections — but only the chassis could make
+       them, so every arm and every plate in the library was stuck being a box
+       or a constant-radius cylinder. That is the whole reason the machines came
+       out blocky: not the drawing, the vocabulary.
+       prof is [[t,radius],…] along the axis; ell is [a,b] to squash the circle
+       into an oval, which is what turns a cylinder into a limb. */
+    lathe:(c,axis,prof,o)=>push(Object.assign({k:"lathe",c:L(c[0],c[1],c[2]),
+        axis:V.norm(D(axis[0],axis[1],axis[2])),prof},lathNorm(prof,o)))
   };
 }
+
+/* A body of revolution wants its surface detail as STATION INDICES and a
+   meridian count; every other primitive wants fractions along its length. That
+   mismatch is silent until it is not — a fractional index reads off the end of
+   the profile array and takes the whole drawing with it. Rather than ask forty
+   call sites to remember which convention they are in, translate here: whatever
+   a variant passes, come out the other side speaking lathe. */
+function lathNorm(prof,o){
+  o=Object.assign({},o||{});
+  const d=o.det;
+  const NP=prof.length;
+  let rings=d&&d.rings;
+  if(rings&&rings.length&&rings.some(v=>!Number.isInteger(v)))
+    rings=rings.map(v=>Math.max(1,Math.min(NP-2,Math.round(v*(NP-1)))));
+  else if(!rings||!rings.length){rings=[];for(let i=1;i<NP-1;i++)rings.push(i);}
+  const mer=d&&d.mer!=null?d.mer:(d&&d.longs?Math.max(4,d.longs.length*2):6);
+  o.det={rings:Array.from(new Set(rings)).filter(i=>i>0&&i<NP-1),
+         mer:Math.max(4,Math.round(mer*(0.55+GK.q*0.75))),merOff:(d&&d.merOff)||0};
+  return o;
+}
+
+/* ===================== form kit =====================
+   Blockiness is not a rendering problem, it is a proportion problem, and it has
+   three causes: constant radius, square ends, and circular cross-sections where
+   the real thing is a lozenge. FORM fixes all three in one place.
+
+   `basis()` picks the two vectors an ellipse is measured against from the axis
+   alone, so which way an oval points depends on where the socket is facing.
+   Rather than guess, each call works out which frame direction each basis
+   vector landed on and orders the ellipse to match — so "wider than it is deep"
+   means the same thing on a chest plate and on a shin. */
+const FORM={
+  ell(B,axis,rU,rS){
+    const w=V.norm(B.D(axis[0],axis[1],axis[2]));
+    const [bu,bv]=basis(w), fu=V.norm(B.D(0,1,0));
+    const base=Math.max(rU,rS)||1;
+    const pick=v=>(Math.abs(V.dot(v,fu))>0.5?rU:rS)/base;
+    return {base,ell:[pick(bu),pick(bv)]};
+  },
+  /* The drop-in replacement for a box, argument for argument. It takes the
+     longest half-extent as the axis of revolution and the other two as the
+     cross-section, so a plate stays a plate and a post stays a post — but it
+     comes out as a chamfered lozenge instead of a carton. Which of the two
+     remaining frame axes each basis vector landed on is worked out rather than
+     assumed, because `basis()` picks them off the axis alone and a socket
+     facing sideways would otherwise get its plate stood on edge. */
+  block(B,c,hx,hy,hz,o){
+    o=o||{};
+    const R=[hx,hy,hz], dirs=[[1,0,0],[0,1,0],[0,0,1]];
+    let ai=0; for(let i=1;i<3;i++) if(R[i]>R[ai]) ai=i;
+    const rest=[0,1,2].filter(i=>i!==ai);
+    const w=V.norm(B.D(dirs[ai][0],dirs[ai][1],dirs[ai][2]));
+    const [bu,bv]=basis(w);
+    const wf=rest.map(i=>V.norm(B.D(dirs[i][0],dirs[i][1],dirs[i][2])));
+    const base=Math.max(R[rest[0]],R[rest[1]])||1;
+    const pick=v=>(Math.abs(V.dot(v,wf[0]))>=Math.abs(V.dot(v,wf[1]))?R[rest[0]]:R[rest[1]])/base;
+    const hl=R[ai], ch=o.chamfer==null?0.80:o.chamfer;
+    B.lathe(c,dirs[ai],[[-hl,base*ch*0.88],[-hl*0.80,base],[hl*0.80,base],[hl,base*ch*0.88]],
+      Object.assign({ell:[pick(bu),pick(bv)]},o));
+  },
+  /* An armour plate with the corners taken off and a lozenge section. This is
+     the direct replacement for B.box wherever a box was standing in for armour:
+     same mass, same footprint, but it has a shadow line down its length and it
+     does not read as a carton. */
+  slab(B,c,axis,hl,rU,rS,o){
+    o=o||{};
+    const {base,ell}=FORM.ell(B,axis,rU,rS);
+    const ch=o.chamfer==null?0.78:o.chamfer;
+    B.lathe(c,axis,[[-hl,base*ch*0.86],[-hl*0.82,base],[hl*0.82,base],[hl,base*ch]],
+      Object.assign({ell,det:o.det||hullDet([0.3,0.62,0.88],[0.5,2.6,4.2],[])},o.opt||{}));
+  },
+  /* A limb bone: thin at the joints, full through the belly. Two numbers do all
+     the work — where the swell sits and how much of it there is. A constant
+     radius reads as plumbing; 15% of swell reads as a machine that was cast. */
+  bone(B,a,b,r,o){
+    o=o||{};
+    const d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+    const len=Math.hypot(d[0],d[1],d[2])||1;
+    const sw=o.swell==null?0.16:o.swell, k=o.mid==null?0.42:o.mid;
+    const r0=r*(o.r0==null?0.82:o.r0), r1=r*(o.r1==null?0.66:o.r1);
+    const prof=[[0,r0*0.9],[len*0.06,r0],[len*k,r*(1+sw)],[len*0.88,r1*1.06],[len,r1]];
+    const eo=o.flat?FORM.ell(B,d,r,r*o.flat):{base:r,ell:null};
+    if(eo.ell)for(const q of prof)q[1]*=1;
+    B.lathe(a,d,prof,Object.assign({ell:eo.ell||undefined,
+      det:o.det||hullDet([0.24,0.5,0.76],[0.4,2.2,3.9,5.4],[])},o.opt||{}));
+  },
+  /* The cap over a joint: a short flared shell that overhangs the bone it sits
+     on. Elbows and knees are where a limb stops being two cones in a row. */
+  cap(B,at,dir,r,o){
+    o=o||{};
+    const L2=r*(o.len==null?1.5:o.len);
+    const d=[dir[0]*L2,dir[1]*L2,dir[2]*L2];
+    B.lathe([at[0]-d[0]*0.42,at[1]-d[1]*0.42,at[2]-d[2]*0.42],d,
+      [[0,r*0.72],[L2*0.30,r*1.22],[L2*0.72,r*1.16],[L2,r*0.5]],
+      {det:hullDet([0.35,0.7],[0.4,2.4,4.1],[])});
+  }
+};
 
 /* ===================== greeble kit =====================
    The reference these are cut against is not a clean product render — it is a
@@ -513,7 +620,7 @@ neck:[
    const h=E.x*rr(0.5,0.7);
    B.tube([-mr*0.5,0,0],[h*0.2,0,0],mr*1.05,mr*0.8,{hideA:true});
    for(const s of [-1,1]){
-     B.box([h*0.55,0,s*mr*0.72],h*0.42,mr*0.2,mr*0.16,{det:{ribs:3,line:0.75}});
+     FORM.block(B,[h*0.55,0,s*mr*0.72],h*0.42,mr*0.2,mr*0.16,{det:{ribs:3,line:0.75}});
      GK.hinge(B,[h*0.9,0,s*mr*0.72],"z",mr*0.26,rr);
    }
    B.cap([h*0.2,0,0],[h*0.85,0,0],mr*0.34);
@@ -673,22 +780,22 @@ head:[
 chest:[
 {n:"HATCH",crew:1,make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.3,0.5), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.42,0,0],d*0.5,h*0.8,w*0.75,{hideA:true,det:{ribs:4,line:0.7}});
+   FORM.block(B,[d*0.42,0,0],d*0.5,h*0.8,w*0.75,{hideA:true,det:{ribs:4,line:0.7}});
    B.disc([d*0.92,0,0],[1,0,0],h*0.6,h*0.3);
    GK.bolts(B,[d*0.94,0,0],"x",h*0.68,10);
    B.tube([d*0.95,h*0.4,-w*0.4],[d*0.95,h*0.4,w*0.4],h*0.07,h*0.07);
-   for(let i=0;i<3;i++) B.box([d*0.5,-h*(0.5+i*0.5),0],d*0.1,h*0.05,w*0.3);
+   for(let i=0;i<3;i++) FORM.block(B,[d*0.5,-h*(0.5+i*0.5),0],d*0.1,h*0.05,w*0.3);
  }},
 {n:"INTAKE",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.28,0.44), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.4,0,0],d*0.45,h*0.85,w*0.8,{hideA:true,det:{ribs:3,line:0.75}});
+   FORM.block(B,[d*0.4,0,0],d*0.45,h*0.85,w*0.8,{hideA:true,det:{ribs:3,line:0.75}});
    GK.vent(B,[d*0.85,0,0],d*0.1,h*0.7,w*0.7,7,"y");
-   B.box([d*0.5,h*0.95,0],d*0.4,h*0.12,w*0.5,{det:{ribs:2,line:0.8}});
+   FORM.block(B,[d*0.5,h*0.95,0],d*0.4,h*0.12,w*0.5,{det:{ribs:2,line:0.8}});
    GK.hose(B,[d*0.2,-h*0.8,w*0.6],[d*0.8,-h*0.4,w*0.75],h*0.09,5);
  }},
 {n:"MISSILE DECK",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.3,0.46), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.45,0,0],d*0.5,h*0.8,w*0.82,{hideA:true,det:{ribs:2,line:0.7}});
+   FORM.block(B,[d*0.45,0,0],d*0.5,h*0.8,w*0.82,{hideA:true,det:{ribs:2,line:0.7}});
    const nx=GK.n(3), nz=GK.n(3);
    for(let i=0;i<nx;i++)for(let j=0;j<nz;j++){
      const y=(i/(nx-1||1)-0.5)*h*1.1, z=(j/(nz-1||1)-0.5)*w*1.2;
@@ -700,19 +807,19 @@ chest:[
    const d=E.x*rr(0.26,0.42), h=E.y*0.5, w=E.z*0.5;
    B.panel([[-d*0.1,-w*0.85],[-d*0.1,w*0.85],[d,w*0.6],[d,-w*0.6]],h*1.5,
            {det:{ribs:4,line:0.7}});
-   B.box([d*0.55,h*0.55,0],d*0.3,h*0.14,w*0.55,{det:{ribs:3,line:0.8}});
+   FORM.block(B,[d*0.55,h*0.55,0],d*0.3,h*0.14,w*0.55,{det:{ribs:3,line:0.8}});
    GK.bolts(B,[d*0.6,0,0],"x",h*0.55,8);
  }},
 {n:"CAGE",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.3,0.5), h=E.y*0.5, w=E.z*0.5;
    for(const s of [-1,1]) B.tube([-d*0.05,-h*0.9,s*w*0.8],[d,-h*0.2,s*w*0.55],h*0.1,h*0.08);
    for(const s of [-1,1]) B.tube([-d*0.05,h*0.9,s*w*0.8],[d,h*0.2,s*w*0.55],h*0.1,h*0.08);
-   B.box([d*0.85,0,0],d*0.14,h*0.35,w*0.6,{det:{ribs:3,line:0.8}});
+   FORM.block(B,[d*0.85,0,0],d*0.14,h*0.35,w*0.6,{det:{ribs:3,line:0.8}});
    GK.clutter(B,[d*0.45,0,0],d*0.3,h*0.5,w*0.5,rr,6);
  }},
 {n:"BARE",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.14,0.24), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.5,0,0],d*0.5,h*0.5,w*0.5,{hideA:true,det:{ribs:2,line:0.8}});
+   FORM.block(B,[d*0.5,0,0],d*0.5,h*0.5,w*0.5,{hideA:true,det:{ribs:2,line:0.8}});
    GK.clutter(B,[d*0.6,0,0],d*0.3,h*0.4,w*0.55,rr,4);
  }}
 ],
@@ -723,7 +830,7 @@ chest:[
 back:[
 {n:"THRUSTER RACK",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.55,0.85), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.34,0,0],d*0.4,h*0.8,w*0.8,{hideA:true,det:{ribs:3,line:0.7}});
+   FORM.block(B,[d*0.34,0,0],d*0.4,h*0.8,w*0.8,{hideA:true,det:{ribs:3,line:0.7}});
    for(const s of [-1,1]){
      B.tube([d*0.7,h*0.3,s*w*0.5],[d*1.0,h*0.1,s*w*0.55],h*0.34,h*0.44,
             {det:hullDet([0.3,0.62,0.88],[],[])});
@@ -735,7 +842,7 @@ back:[
  }},
 {n:"RADIATOR",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.4,0.6), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.3,0,0],d*0.34,h*0.7,w*0.7,{hideA:true,det:{ribs:2,line:0.75}});
+   FORM.block(B,[d*0.3,0,0],d*0.34,h*0.7,w*0.7,{hideA:true,det:{ribs:2,line:0.75}});
    const N=GK.n(6);
    for(let i=0;i<N;i++){
      const k=(i/(N-1||1)-0.5);
@@ -748,7 +855,7 @@ back:[
  }},
 {n:"CANNON PAIR",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.4,0.6), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.35,0,0],d*0.4,h*0.7,w*0.75,{hideA:true,det:{ribs:3,line:0.7}});
+   FORM.block(B,[d*0.35,0,0],d*0.4,h*0.7,w*0.75,{hideA:true,det:{ribs:3,line:0.7}});
    for(const s of [-1,1]){
      GK.hinge(B,[d*0.6,h*0.7,s*w*0.55],"z",h*0.2,rr);
      GK.barrel(B,[d*0.6,h*0.7,s*w*0.55],[-d*0.9,h*1.1,s*w*0.5],h*0.2);
@@ -757,7 +864,7 @@ back:[
  }},
 {n:"DRONE BAY",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.45,0.7), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.42,0,0],d*0.5,h*0.75,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
+   FORM.block(B,[d*0.42,0,0],d*0.5,h*0.75,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
    for(const s of [-1,1]){
      B.panel([[d*0.9,s*w*0.3],[d*0.9,s*w*0.95],[d*0.3,s*w*1.15],[d*0.3,s*w*0.4]],h*0.08,
              {det:{ribs:3,line:0.8}});
@@ -767,7 +874,7 @@ back:[
  }},
 {n:"TANKS",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.4,0.62), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.28,0,0],d*0.3,h*0.65,w*0.7,{hideA:true});
+   FORM.block(B,[d*0.28,0,0],d*0.3,h*0.65,w*0.7,{hideA:true});
    for(const s of [-1,1])
      B.cap([d*0.45,h*0.45,s*w*0.55],[d*0.95,-h*0.5,s*w*0.6],h*0.34,
            {det:hullDet([0.28,0.55,0.82],[0.4,3.5],[])});
@@ -776,7 +883,7 @@ back:[
  }},
 {n:"MAST",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.3,0.45), h=E.y*0.5, w=E.z*0.5;
-   B.box([d*0.3,0,0],d*0.34,h*0.6,w*0.6,{hideA:true,det:{ribs:2,line:0.8}});
+   FORM.block(B,[d*0.3,0,0],d*0.34,h*0.6,w*0.6,{hideA:true,det:{ribs:2,line:0.8}});
    B.tube([d*0.6,h*0.4,0],[d*0.5,h*2.3,0],h*0.14,h*0.07,{det:hullDet([0.3,0.6,0.85],[],[])});
    B.disc([d*0.52,h*1.8,0],[0,1,0],h*0.5,h*0.18);
    B.disc([d*0.5,h*2.3,0],[0,1,0],h*0.26,h*0.1);
@@ -802,14 +909,14 @@ shoulder:[
    GK.gear(B,[w*0.34,0,0],"x",mr*0.8,14);
    B.panel([[w*0.3,-d*0.9],[w*0.3,d*0.9],[w*1.05,d*0.6],[w*1.05,-d*0.7]],h*1.5,
            {det:{ribs:4,line:0.7}});
-   B.box([w*0.7,h*0.8,0],w*0.3,h*0.16,d*0.6,{det:{ribs:3,line:0.8}});
+   FORM.block(B,[w*0.7,h*0.8,0],w*0.3,h*0.16,d*0.6,{det:{ribs:3,line:0.8}});
    GK.piston(B,[w*0.2,h*0.6,d*0.5],[w*0.85,h*0.2,d*0.4],mr*0.16);
    GK.bolts(B,[w*0.36,0,0],"x",mr*0.66,8);
  }},
 {n:"BLOCK",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
-   B.box([w*0.5,0,0],w*0.5,h*0.85,d*0.85,{hideA:true,det:{ribs:3,line:0.7}});
-   B.box([w*1.0,0,0],w*0.12,h*0.6,d*0.6,{det:{ribs:2,line:0.85}});
+   FORM.block(B,[w*0.5,0,0],w*0.5,h*0.85,d*0.85,{hideA:true,det:{ribs:3,line:0.7}});
+   FORM.block(B,[w*1.0,0,0],w*0.12,h*0.6,d*0.6,{det:{ribs:2,line:0.85}});
    GK.vent(B,[w*0.55,h*0.9,0],w*0.4,h*0.08,d*0.6,5,"x");
    GK.clutter(B,[w*0.5,-h*0.7,0],w*0.3,h*0.2,d*0.5,rr,4);
    GK.hinge(B,[w*0.16,0,0],"x",mr*0.7,rr);
@@ -824,13 +931,13 @@ shoulder:[
      B.tube([w*0.9,h*0.2+Math.cos(a)*h*0.38,Math.sin(a)*h*0.38],
             [w*0.9,h*0.2+Math.cos(a)*h*0.38,Math.sin(a)*h*0.38+d*1.3],h*0.11,h*0.1);}
    B.disc([w*0.96,h*0.2,0],[1,0,0],h*0.6,h*0.24);
-   B.box([w*0.5,-h*0.6,0],w*0.3,h*0.3,d*0.5,{det:{ribs:4,line:0.8}});
+   FORM.block(B,[w*0.5,-h*0.6,0],w*0.3,h*0.3,d*0.5,{det:{ribs:4,line:0.8}});
    GK.hose(B,[w*0.2,-h*0.5,-d*0.4],[w*0.75,-h*0.45,-d*0.1],h*0.1,5);
  }},
 {n:"MISSILE BOX",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.5,0.75), h=E.y*0.5, d=E.z*0.5;
    B.tube([-mr*0.5,0,0],[w*0.28,0,0],mr*1.0,mr*0.85,{hideA:true});
-   B.box([w*0.62,h*0.35,0],w*0.36,h*0.6,d*0.85,{det:{ribs:2,line:0.7}});
+   FORM.block(B,[w*0.62,h*0.35,0],w*0.36,h*0.6,d*0.85,{det:{ribs:2,line:0.7}});
    const ny=GK.n(3), nz=GK.n(4);
    for(let i=0;i<ny;i++)for(let j=0;j<nz;j++)
      B.tube([w*0.62+(i/(ny-1||1)-0.5)*w*0.5,h*0.35+(j/(nz-1||1)-0.5)*h*0.9,d*0.85],
@@ -863,7 +970,7 @@ shoulder:[
  }},
 {n:"LAUNCH RAIL",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.5,0.72), h=E.y*0.5, d=E.z*0.5;
-   B.box([w*0.45,0,0],w*0.45,h*0.6,d*0.6,{hideA:true,det:{ribs:3,line:0.75}});
+   FORM.block(B,[w*0.45,0,0],w*0.45,h*0.6,d*0.6,{hideA:true,det:{ribs:3,line:0.75}});
    B.tube([w*0.6,h*0.75,-d*1.1],[w*0.6,h*0.75,d*1.1],h*0.09,h*0.09);
    for(let i=0;i<GK.n(3);i++)
      B.cap([w*0.6,h*0.95,-d*0.9+i*d*0.8],[w*0.6,h*0.95,-d*0.5+i*d*0.8],h*0.16,
@@ -873,138 +980,168 @@ shoulder:[
 ],
 /* ---- upper: local x = down, y = fore, z = starboard ----
    The humerus. It hangs off the shoulder and hands the elbow down to the
-   forearm at x = E.x, which is the contract the forearm socket is placed on. ---- */
+   forearm at x = E.x, which is the contract the forearm socket is placed on.
+   Every variant is a bone that swells through its belly plus a shell that
+   stands proud of it and stops short of both joints — an arm is not a pipe,
+   and the gap where the frame shows through is the whole reason it reads as
+   assembled rather than extruded. ---- */
 upper:[
 {n:"RAMMED",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.8,1.0), r=mr*rr(0.75,0.95);
-   B.tube([-mr*0.5,0,0],[l*0.2,0,0],mr*1.0,r,{hideA:true,det:hullDet([0.5],[],[])});
-   B.cap([l*0.2,0,0],[l*0.82,0,0],r*0.8,{det:hullDet([0.3,0.6,0.85],[0.5,3.8],[])});
-   for(const s of [-1,1]) GK.piston(B,[l*0.16,s*r*0.7,0],[l*0.85,s*r*0.45,0],r*0.2);
-   GK.hose(B,[l*0.2,0,r*0.8],[l*0.8,0,r*0.55],r*0.14,6);
-   GK.hinge(B,[l,0,0],"z",r*0.75,rr);
+   const l=E.x, r=mr*rr(0.82,1.0);
+   B.tube([-mr*0.5,0,0],[l*0.14,0,0],mr*1.0,r*0.86,{hideA:true,det:hullDet([0.5],[],[])});
+   FORM.bone(B,[l*0.10,0,0],[l*0.94,0,0],r,{swell:0.20,mid:0.44,r0:0.86,r1:0.70});
+   for(const s of [-1,1]) GK.piston(B,[l*0.16,s*r*0.72,0],[l*0.86,s*r*0.46,0],r*0.19);
+   GK.hose(B,[l*0.2,0,r*0.84],[l*0.8,0,r*0.58],r*0.13,6);
+   FORM.cap(B,[l,0,0],[1,0,0],r*0.80,{len:1.3});
+   GK.hinge(B,[l,0,0],"z",r*0.74,rr);
  }},
 {n:"SLEEVED",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.82,1.0), r=mr*rr(0.85,1.05);
+   const l=E.x, r=mr*rr(0.88,1.06);
    B.tube([-mr*0.5,0,0],[l*0.12,0,0],mr*1.0,r*0.9,{hideA:true});
-   B.box([l*0.5,0,0],l*0.42,r*0.95,r*0.85,{det:{ribs:4,line:0.7}});
-   B.panel([[l*0.12,-r*1.0],[l*0.12,r*1.0],[l*0.88,r*0.7],[l*0.88,-r*0.7]],r*0.12,
-           {det:{ribs:3,line:0.8},cant:Math.PI/2});
-   GK.vent(B,[l*0.55,-r*0.9,0],l*0.3,r*0.1,r*0.6,5,"x");
-   GK.hinge(B,[l,0,0],"z",r*0.7,rr);
+   FORM.bone(B,[l*0.06,0,0],[l*0.96,0,0],r*0.82,{swell:0.12,mid:0.4});
+   FORM.slab(B,[l*0.50,0,0],[1,0,0],l*0.40,r*1.06,r*0.82,{det:{ribs:4,line:0.72}});
+   FORM.slab(B,[l*0.24,r*0.40,0],[1,0,0],l*0.14,r*0.36,r*0.60,{chamfer:0.6});
+   GK.vent(B,[l*0.58,-r*0.94,0],l*0.28,r*0.09,r*0.56,5,"x");
+   FORM.cap(B,[l,0,0],[1,0,0],r*0.76,{len:1.4});
+   GK.hinge(B,[l,0,0],"z",r*0.70,rr);
  }},
 {n:"SKELETAL",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.85,1.02), r=mr*rr(0.7,0.9);
+   const l=E.x, r=mr*rr(0.74,0.92);
    B.tube([-mr*0.5,0,0],[l*0.14,0,0],mr*1.0,r*0.6,{hideA:true});
-   /* the frame with nothing over it — four longerons and their cross-bracing */
+   /* the frame with nothing over it — four longerons that bow outward at the
+      belly, exactly where the shelled arms carry their swell */
    for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.5;
-     B.tube([l*0.14,Math.cos(a)*r*0.7,Math.sin(a)*r*0.7],
-            [l*0.9,Math.cos(a)*r*0.5,Math.sin(a)*r*0.5],r*0.15,r*0.12);}
-   for(const k of [0.35,0.62]) B.disc([l*k,0,0],[1,0,0],r*0.66,r*0.4);
-   GK.hose(B,[l*0.16,0,0],[l*0.88,0,0],r*0.2,8);
+     const c=Math.cos(a),sn=Math.sin(a);
+     B.tube([l*0.14,c*r*0.68,sn*r*0.68],[l*0.46,c*r*0.86,sn*r*0.86],r*0.15,r*0.14);
+     B.tube([l*0.46,c*r*0.86,sn*r*0.86],[l*0.92,c*r*0.48,sn*r*0.48],r*0.14,r*0.11);}
+   for(const k of [0.30,0.62]) B.disc([l*k,0,0],[1,0,0],r*0.80,r*0.44);
+   GK.hose(B,[l*0.16,0,0],[l*0.90,0,0],r*0.20,8);
+   FORM.cap(B,[l,0,0],[1,0,0],r*0.74,{len:1.5});
    GK.hinge(B,[l,0,0],"z",r*0.72,rr);
  }},
 {n:"BOXED",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.78,0.96), r=mr*rr(0.9,1.1);
-   B.box([l*0.48,0,0],l*0.48,r*1.0,r*0.9,{hideA:true,det:{ribs:5,line:0.7}});
-   B.box([l*0.5,r*1.05,0],l*0.32,r*0.1,r*0.6,{det:{ribs:3,line:0.8}});
-   GK.bolts(B,[l*0.2,0,0],"x",r*0.8,8);
-   GK.piston(B,[l*0.2,-r*0.9,r*0.5],[l*0.85,-r*0.6,r*0.35],r*0.16);
+   const l=E.x, r=mr*rr(0.92,1.12);
+   FORM.bone(B,[-mr*0.4,0,0],[l*0.96,0,0],r*0.84,{swell:0.10,opt:{hideA:true}});
+   FORM.slab(B,[l*0.48,0,0],[1,0,0],l*0.46,r*1.04,r*0.90,
+     {chamfer:0.68,det:{ribs:5,line:0.72}});
+   FORM.slab(B,[l*0.50,r*1.04,0],[1,0,0],l*0.30,r*0.14,r*0.58,{chamfer:0.6});
+   GK.bolts(B,[l*0.18,0,0],"x",r*0.84,8);
+   GK.piston(B,[l*0.20,-r*0.92,r*0.52],[l*0.86,-r*0.58,r*0.36],r*0.17);
+   FORM.cap(B,[l,0,0],[1,0,0],r*0.80,{len:1.3});
    GK.hinge(B,[l,0,0],"z",r*0.72,rr);
  }},
 {n:"TAPERED",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.82,1.0), r=mr*rr(0.9,1.15);
-   B.tube([-mr*0.5,0,0],[l*0.9,0,0],mr*1.05,r*0.5,
-          {hideA:true,det:hullDet([0.25,0.5,0.75],[0.4,2.2,3.9,5.4],[])});
-   B.disc([l*0.34,0,0],[1,0,0],r*0.95,r*0.6);
-   GK.bolts(B,[l*0.35,0,0],"x",r*0.8,10);
-   GK.hose(B,[l*0.1,-r*0.8,0],[l*0.85,-r*0.4,0],r*0.12,6);
+   const l=E.x, r=mr*rr(0.94,1.18);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[
+     [0,mr*1.02],[l*0.14,r*1.06],[l*0.42,r*0.92],[l*0.74,r*0.68],[l*0.98,r*0.50]],
+     hullDet([0.24,0.5,0.76],[0.4,2.2,3.9,5.4],[]),{hideA:true,ell:[1,0.88]});
+   B.disc([l*0.32,0,0],[1,0,0],r*1.00,r*0.62);
+   GK.bolts(B,[l*0.33,0,0],"x",r*0.82,10);
+   GK.hose(B,[l*0.12,-r*0.82,0],[l*0.86,-r*0.44,0],r*0.12,6);
+   FORM.cap(B,[l,0,0],[1,0,0],r*0.62,{len:1.4});
    GK.hinge(B,[l,0,0],"z",r*0.58,rr);
  }}
 ],
 /* ---- fore: local x = down, y = fore, z = starboard ----
    Forearm and whatever terminates it. This is the socket that decides whether
    the mech is a labourer or a gun platform, so the library deliberately spans
-   both — a five-finger manipulator and a 120mm are the same contract. ---- */
+   both — a five-finger manipulator and a 120mm are the same contract. The
+   forearm itself is heaviest at the elbow and narrows to the wrist, which is
+   the opposite of the humerus and is what gives an arm its taper. ---- */
 fore:[
 {n:"MANIPULATOR",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.6,0.8), r=mr*rr(0.8,1.0);
-   B.tube([-mr*0.5,0,0],[l*0.62,0,0],mr*1.0,r*0.82,{hideA:true,det:hullDet([0.35,0.7],[],[])});
-   for(const s of [-1,1]) GK.piston(B,[l*0.05,s*r*0.6,0],[l*0.6,s*r*0.4,0],r*0.14);
-   B.box([l*0.78,0,0],l*0.16,r*0.8,r*0.7,{det:{ribs:3,line:0.75}});
-   /* four fingers and a thumb, each two-jointed */
+   const l=E.x*rr(0.6,0.8), r=mr*rr(0.84,1.02);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[
+     [0,mr*1.0],[l*0.16,r*1.06],[l*0.44,r*0.94],[l*0.68,r*0.76]],
+     hullDet([0.3,0.62,0.88],[],[]),{hideA:true,ell:[1,0.86]});
+   for(const s of [-1,1]) GK.piston(B,[l*0.06,s*r*0.62,0],[l*0.62,s*r*0.42,0],r*0.14);
+   FORM.slab(B,[l*0.80,0,0],[1,0,0],l*0.16,r*0.80,r*0.70,{chamfer:0.62,det:{ribs:3,line:0.75}});
+   /* four fingers and a thumb, each two-jointed and each tapering */
    for(let i=0;i<4;i++){
      const z=(i/3-0.5)*r*1.1;
-     B.cap([l*0.92,r*0.1,z],[l*1.16,r*0.35,z],r*0.13);
-     B.cap([l*1.16,r*0.35,z],[l*1.28,r*0.72,z],r*0.1);
+     FORM.bone(B,[l*0.92,r*0.1,z],[l*1.16,r*0.35,z],r*0.14,{swell:0.1,r1:0.78});
+     FORM.bone(B,[l*1.16,r*0.35,z],[l*1.28,r*0.72,z],r*0.11,{swell:0.08,r1:0.6});
    }
-   B.cap([l*0.86,-r*0.3,r*0.7],[l*1.06,-r*0.1,r*0.95],r*0.14);
-   B.cap([l*1.06,-r*0.1,r*0.95],[l*1.16,r*0.3,r*0.9],r*0.11);
-   GK.hose(B,[l*0.1,0,-r*0.7],[l*0.7,0,-r*0.4],r*0.12,5);
+   FORM.bone(B,[l*0.86,-r*0.3,r*0.7],[l*1.06,-r*0.1,r*0.95],r*0.15,{r1:0.8});
+   FORM.bone(B,[l*1.06,-r*0.1,r*0.95],[l*1.16,r*0.3,r*0.9],r*0.12,{r1:0.62});
+   GK.hose(B,[l*0.1,0,-r*0.72],[l*0.7,0,-r*0.42],r*0.12,5);
  }},
 {n:"THREE-CLAW",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.6,0.82), r=mr*rr(0.85,1.05);
-   B.tube([-mr*0.5,0,0],[l*0.55,0,0],mr*1.0,r*0.9,{hideA:true});
-   GK.gear(B,[l*0.6,0,0],"x",r*0.8,12);
+   const l=E.x*rr(0.6,0.82), r=mr*rr(0.88,1.06);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[
+     [0,mr*1.0],[l*0.14,r*1.08],[l*0.40,r*0.98],[l*0.58,r*0.86]],
+     hullDet([0.3,0.62,0.88],[],[]),{hideA:true,ell:[1,0.9]});
+   GK.gear(B,[l*0.62,0,0],"x",r*0.82,12);
    for(let i=0;i<3;i++){const a=i/3*Math.PI*2+0.5;
      const c=Math.cos(a)*r*0.7, s2=Math.sin(a)*r*0.7;
-     B.tube([l*0.66,c,s2],[l*1.0,c*1.5,s2*1.5],r*0.19,r*0.14);
-     B.cap([l*1.0,c*1.5,s2*1.5],[l*1.26,c*0.7,s2*0.7],r*0.11);
+     FORM.bone(B,[l*0.66,c,s2],[l*1.0,c*1.5,s2*1.5],r*0.20,{swell:0.12,r1:0.7});
+     B.lathe([l*1.0,c*1.5,s2*1.5],[l*0.26,-c*0.8,-s2*0.8],
+       [[0,r*0.13],[l*0.16,r*0.08],[l*0.27,r*0.01]],hullDet([0.5],[],[]));
      GK.piston(B,[l*0.62,c*0.45,s2*0.45],[l*1.0,c*1.2,s2*1.2],r*0.08);
    }
  }},
 {n:"CLAMP",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.62,0.85), r=mr*rr(0.9,1.1);
-   B.box([l*0.34,0,0],l*0.36,r*0.9,r*0.85,{hideA:true,det:{ribs:4,line:0.7}});
-   GK.hinge(B,[l*0.72,0,0],"z",r*0.6,rr);
+   const l=E.x*rr(0.62,0.85), r=mr*rr(0.92,1.12);
+   B.lathe([-mr*0.4,0,0],[1,0,0],[[0,mr*1.0],[l*0.12,r*1.04],[l*0.66,r*0.82]],
+     hullDet([0.35,0.7],[],[]),{hideA:true,ell:[1,0.88]});
+   FORM.slab(B,[l*0.36,0,0],[1,0,0],l*0.32,r*0.94,r*0.80,{det:{ribs:4,line:0.72}});
+   GK.hinge(B,[l*0.72,0,0],"z",r*0.60,rr);
    for(const s of [-1,1]){
      B.panel([[l*0.74,s*r*0.2],[l*0.74,s*r*0.85],[l*1.2,s*r*0.55],[l*1.2,s*r*0.12]],r*0.5,
              {det:{ribs:3,line:0.8}});
-     GK.piston(B,[l*0.5,s*r*0.8,0],[l*0.9,s*r*0.6,0],r*0.13);
+     GK.piston(B,[l*0.5,s*r*0.82,0],[l*0.9,s*r*0.60,0],r*0.13);
    }
    GK.hose(B,[l*0.1,r*0.7,0],[l*0.6,r*0.5,0],r*0.11,5);
  }},
 {n:"AUTOCANNON",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.75,1.0), r=mr*rr(0.85,1.05);
-   B.tube([-mr*0.5,0,0],[l*0.3,0,0],mr*1.0,r*0.95,{hideA:true});
-   B.box([l*0.5,0,0],l*0.28,r*0.85,r*0.75,{det:{ribs:3,line:0.7}});
+   const l=E.x*rr(0.75,1.0), r=mr*rr(0.88,1.06);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.14,r*1.06],[l*0.34,r*0.96]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.9]});
+   FORM.slab(B,[l*0.52,0,0],[1,0,0],l*0.28,r*0.90,r*0.78,{det:{ribs:3,line:0.72}});
    GK.barrel(B,[l*0.5,r*0.1,0],[l*1.55,r*0.1,0],r*0.42);
-   B.box([l*0.55,-r*0.9,0],l*0.2,r*0.3,r*0.5,{det:{ribs:5,line:0.8}});
-   GK.hose(B,[l*0.2,-r*0.7,r*0.5],[l*0.55,-r*0.8,r*0.3],r*0.12,5);
-   GK.bolts(B,[l*0.34,0,0],"x",r*0.7,8);
+   FORM.slab(B,[l*0.56,-r*0.92,0],[1,0,0],l*0.20,r*0.30,r*0.48,{chamfer:0.6,det:{ribs:5,line:0.8}});
+   GK.hose(B,[l*0.2,-r*0.72,r*0.5],[l*0.55,-r*0.82,r*0.3],r*0.12,5);
+   GK.bolts(B,[l*0.34,0,0],"x",r*0.72,8);
  }},
 {n:"BEAM RIFLE",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.7,0.95), r=mr*rr(0.75,0.95);
-   B.tube([-mr*0.5,0,0],[l*0.5,0,0],mr*1.0,r*0.8,{hideA:true,det:hullDet([0.4,0.8],[],[])});
-   B.box([l*0.62,0,0],l*0.14,r*0.6,r*0.55);
-   B.tube([l*0.62,r*0.15,0],[l*1.5,r*0.15,0],r*0.3,r*0.24,
-          {det:hullDet([0.2,0.42,0.64,0.86],[0.4,2.5,4.4],[])});
+   const l=E.x*rr(0.7,0.95), r=mr*rr(0.78,0.96);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.16,r*1.04],[l*0.52,r*0.82]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.86]});
+   FORM.slab(B,[l*0.62,0,0],[1,0,0],l*0.14,r*0.62,r*0.56,{chamfer:0.6});
+   B.lathe([l*0.62,r*0.15,0],[0,1,0],
+     [[0,r*0.30],[l*0.30,r*0.34],[l*0.72,r*0.26],[l*0.88,r*0.24]],
+     hullDet([0.2,0.42,0.64,0.86],[0.4,2.5,4.4],[]),{ell:[1,0.84]});
    for(const s of [-1,1]) B.panel([[l*0.75,s*r*0.3],[l*1.35,s*r*0.3],[l*1.35,s*r*0.75],[l*0.8,s*r*0.8]],r*0.07,
      {det:{ribs:3,line:0.85}});
-   B.disc([l*1.5,r*0.15,0],[1,0,0],r*0.28,r*0.12);
-   B.cap([l*0.42,-r*0.55,0],[l*0.72,-r*0.95,0],r*0.14);
+   B.disc([l*0.62,r*1.03,0],[0,1,0],r*0.28,r*0.12);
+   FORM.bone(B,[l*0.42,-r*0.55,0],[l*0.72,-r*0.95,0],r*0.15,{r1:0.72});
  }},
 {n:"SHIELD ARM",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.6,0.8), r=mr*rr(0.85,1.05);
-   B.tube([-mr*0.5,0,0],[l*0.7,0,0],mr*1.0,r*0.8,{hideA:true});
+   const l=E.x*rr(0.6,0.8), r=mr*rr(0.88,1.06);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.16,r*1.02],[l*0.74,r*0.78]],
+     hullDet([0.35,0.7],[],[]),{hideA:true,ell:[1,0.86]});
    B.panel([[-l*0.35,-r*1.5],[-l*0.35,r*1.5],[l*1.35,r*1.05],[l*1.35,-r*1.05]],r*0.22,
            {det:{ribs:6,line:0.7}});
-   B.box([l*0.5,r*0.35,0],l*0.7,r*0.12,r*0.4,{det:{ribs:4,line:0.8}});
-   GK.bolts(B,[l*0.5,0,0],"x",r*0.9,8);
-   B.cap([l*0.95,0,-r*1.0],[l*1.3,0,-r*1.35],r*0.1);
+   FORM.slab(B,[l*0.5,r*0.35,0],[1,0,0],l*0.66,r*0.14,r*0.42,{chamfer:0.6,det:{ribs:4,line:0.8}});
+   GK.bolts(B,[l*0.5,0,0],"x",r*0.88,8);
+   FORM.bone(B,[l*0.95,0,-r*1.0],[l*1.3,0,-r*1.35],r*0.11,{r1:0.6});
  }},
 {n:"DRILL",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.7,0.95), r=mr*rr(0.9,1.1);
-   B.tube([-mr*0.5,0,0],[l*0.4,0,0],mr*1.0,r*0.95,{hideA:true});
+   const l=E.x*rr(0.7,0.95), r=mr*rr(0.92,1.12);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.14,r*1.06],[l*0.42,r*0.96]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.9]});
    GK.gear(B,[l*0.46,0,0],"x",r*1.0,16);
-   B.tube([l*0.46,0,0],[l*1.5,0,0],r*0.85,r*0.06,
-          {det:hullDet([0.16,0.34,0.52,0.7,0.88],[0.3,1.9,3.5,5.1],[])});
-   GK.piston(B,[l*0.14,r*0.8,0],[l*0.5,r*0.6,0],r*0.16);
-   GK.hose(B,[l*0.14,-r*0.8,0],[l*0.5,-r*0.6,0],r*0.13,5);
+   B.lathe([l*0.46,0,0],[1,0,0],
+     [[0,r*0.86],[l*0.34,r*0.66],[l*0.72,r*0.36],[l*1.04,r*0.06]],
+     hullDet([0.16,0.34,0.52,0.7,0.88],[0.3,1.9,3.5,5.1],[]));
+   GK.piston(B,[l*0.14,r*0.82,0],[l*0.5,r*0.6,0],r*0.16);
+   GK.hose(B,[l*0.14,-r*0.82,0],[l*0.5,-r*0.6,0],r*0.13,5);
  }},
 {n:"MISSILE FIST",make(B,mr,rr,R,E,probe,P){
-   const l=E.x*rr(0.62,0.85), r=mr*rr(0.9,1.15);
-   B.tube([-mr*0.5,0,0],[l*0.45,0,0],mr*1.0,r*0.95,{hideA:true});
-   B.box([l*0.85,0,0],l*0.4,r*1.0,r*0.9,{det:{ribs:3,line:0.7}});
+   const l=E.x*rr(0.62,0.85), r=mr*rr(0.92,1.16);
+   B.lathe([-mr*0.5,0,0],[1,0,0],[[0,mr*1.0],[l*0.14,r*1.06],[l*0.48,r*0.96]],
+     hullDet([0.4,0.8],[],[]),{hideA:true,ell:[1,0.9]});
+   FORM.slab(B,[l*0.88,0,0],[1,0,0],l*0.36,r*1.02,r*0.88,{chamfer:0.7,det:{ribs:3,line:0.72}});
    const n=GK.n(3);
    for(let i=0;i<n;i++)for(let j=0;j<n;j++)
      B.tube([l*1.25,(i/(n-1||1)-0.5)*r*1.4,(j/(n-1||1)-0.5)*r*1.3],
@@ -1023,7 +1160,7 @@ waist:[
    const plate=(fy,fz,sw,sd)=>{
      B.panel([[h*0.16,-sw],[h*0.16,sw],[h*0.95,sw*0.72],[h*0.95,-sw*0.72]],sd,
              {det:{ribs:3,line:0.75},shiftZ:fz});
-     B.box([h*0.2,fy,fz],h*0.08,d*0.1,sw*0.5);
+     FORM.block(B,[h*0.2,fy,fz],h*0.08,d*0.1,sw*0.5);
    };
    plate(d*0.9,0,w*0.55,d*0.5);
    for(const s of [-1,1]) plate(0,s*w*0.9,w*0.4,d*0.6);
@@ -1049,7 +1186,7 @@ waist:[
    B.disc([h*0.88,0,0],[1,0,0],w*0.95,w*0.5);
    const N=GK.n(8);
    for(let i=0;i<N;i++){const a=i/N*Math.PI*2;
-     B.box([h*0.55,Math.cos(a)*w*0.95,Math.sin(a)*w*0.95],h*0.28,w*0.08,w*0.14,
+     FORM.block(B,[h*0.55,Math.cos(a)*w*0.95,Math.sin(a)*w*0.95],h*0.28,w*0.08,w*0.14,
            {det:{ribs:2,line:0.85}});}
  }},
 {n:"HANGERS",make(B,mr,rr,R,E,probe,P){
@@ -1066,7 +1203,7 @@ waist:[
  }},
 {n:"BELT",make(B,mr,rr,R,E,probe,P){
    const h=E.x*rr(0.3,0.5), w=E.z*0.5, d=E.y*0.5;
-   B.box([h*0.5,0,0],h*0.5,d*0.95,w*0.95,{hideA:true,det:{ribs:5,line:0.7}});
+   FORM.block(B,[h*0.5,0,0],h*0.5,d*0.95,w*0.95,{hideA:true,det:{ribs:5,line:0.7}});
    GK.vent(B,[h*0.5,d*1.0,0],h*0.32,d*0.06,w*0.6,5,"x");
    GK.clutter(B,[h*0.55,-d*0.9,0],h*0.3,d*0.15,w*0.7,rr,5);
    GK.bolts(B,[h*0.15,0,0],"x",mr*0.9,10);
@@ -1095,7 +1232,7 @@ hip:[
  }},
 {n:"BOX GIRDLE",make(B,mr,rr,R,E,probe,P){
    const h=E.x*rr(0.45,0.7), w=E.z*0.5;
-   B.box([h*0.5,0,0],h*0.5,mr*0.9,w*1.0,{hideA:true,det:{ribs:4,line:0.7}});
+   FORM.block(B,[h*0.5,0,0],h*0.5,mr*0.9,w*1.0,{hideA:true,det:{ribs:4,line:0.7}});
    for(const s of [-1,1]) GK.hinge(B,[h*0.8,0,s*w*0.95],"z",mr*0.42,rr);
    GK.vent(B,[h*0.5,-mr*0.95,0],h*0.32,mr*0.08,w*0.6,5,"x");
    GK.bolts(B,[h*0.12,0,0],"x",mr*0.85,10);
@@ -1123,7 +1260,7 @@ hip:[
    const h=E.x*rr(0.5,0.75), w=E.z*0.5;
    B.tube([-mr*0.4,0,0],[h*0.25,0,0],mr*1.05,mr*0.7,{hideA:true});
    /* no shell: the pelvis is a ram cage over a spine block */
-   B.box([h*0.55,0,0],h*0.3,mr*0.5,w*0.5,{det:{ribs:3,line:0.8}});
+   FORM.block(B,[h*0.55,0,0],h*0.3,mr*0.5,w*0.5,{det:{ribs:3,line:0.8}});
    for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
      GK.piston(B,[h*0.2,Math.cos(a)*mr*0.8,Math.sin(a)*w*0.8],
                  [h*0.8,Math.cos(a)*mr*0.5,Math.sin(a)*w*1.0],mr*0.15);}
@@ -1138,14 +1275,14 @@ hip:[
 aux:[
 {n:"CABLE LOOM",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.4,0.7), h=E.y*0.5;
-   B.box([w*0.2,0,0],w*0.2,h*0.4,h*0.4,{hideA:true});
+   FORM.block(B,[w*0.2,0,0],w*0.2,h*0.4,h*0.4,{hideA:true});
    for(let i=0;i<GK.n(4);i++)
      GK.hose(B,[w*0.25,h*(0.3-i*0.2),-h*0.3],[w*0.9,h*(0.1-i*0.25),h*0.5],mr*0.16,7);
-   B.box([w*0.92,0,h*0.5],w*0.12,h*0.35,h*0.2,{det:{ribs:3,line:0.8}});
+   FORM.block(B,[w*0.92,0,h*0.5],w*0.12,h*0.35,h*0.2,{det:{ribs:3,line:0.8}});
  }},
 {n:"VENT STACK",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.35,0.6), h=E.y*0.5;
-   B.box([w*0.5,0,0],w*0.5,h*0.7,h*0.6,{hideA:true,det:{ribs:3,line:0.75}});
+   FORM.block(B,[w*0.5,0,0],w*0.5,h*0.7,h*0.6,{hideA:true,det:{ribs:3,line:0.75}});
    GK.vent(B,[w*0.9,0,0],w*0.14,h*0.6,h*0.5,6,"y");
    GK.bolts(B,[w*0.15,0,0],"x",h*0.55,6);
  }},
@@ -1160,20 +1297,20 @@ aux:[
  }},
 {n:"AMMO FEED",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.4,0.65), h=E.y*0.5;
-   B.box([w*0.45,0,0],w*0.45,h*0.6,h*0.5,{hideA:true,det:{ribs:5,line:0.7}});
+   FORM.block(B,[w*0.45,0,0],w*0.45,h*0.6,h*0.5,{hideA:true,det:{ribs:5,line:0.7}});
    GK.hose(B,[w*0.5,h*0.6,0],[w*0.9,h*1.6,-h*0.3],mr*0.2,8);
    B.disc([w*0.9,h*1.6,-h*0.3],[0,1,0],h*0.24,h*0.1);
    GK.clutter(B,[w*0.5,-h*0.5,0],w*0.25,h*0.2,h*0.4,rr,4);
  }},
 {n:"TOW GEAR",make(B,mr,rr,R,E,probe,P){
    const w=E.x*rr(0.3,0.5), h=E.y*0.5;
-   B.box([w*0.4,0,0],w*0.4,h*0.5,h*0.45,{hideA:true,det:{ribs:3,line:0.8}});
+   FORM.block(B,[w*0.4,0,0],w*0.4,h*0.5,h*0.45,{hideA:true,det:{ribs:3,line:0.8}});
    GK.gear(B,[w*0.5,0,0],"z",h*0.5,14);
    B.tube([w*0.5,0,h*0.5],[w*0.5,0,h*1.3],h*0.09,h*0.07);
    B.cap([w*0.5,0,h*1.3],[w*0.5,-h*0.4,h*1.5],h*0.1);
  }},
 {n:"NONE",make(B,mr,rr,R,E,probe,P){
-   B.box([E.x*0.1,0,0],E.x*0.1,E.y*0.16,E.z*0.16,{hideA:true,det:{ribs:2,line:0.85}});
+   FORM.block(B,[E.x*0.1,0,0],E.x*0.1,E.y*0.16,E.z*0.16,{hideA:true,det:{ribs:2,line:0.85}});
  }}
 ],
 /* ---- drive: local x = down, y = fore, z = starboard ----
@@ -1201,7 +1338,7 @@ drive:[
  }},
 {n:"QUADRUPED",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
    const L=E.x, w=E.z*0.5, r=mr*rr(0.6,0.78);
-   B.box([L*0.1,0,0],L*0.12,E.y*0.45,w*0.9,{hideA:true,det:{ribs:3,line:0.75}});
+   FORM.block(B,[L*0.1,0,0],L*0.12,E.y*0.45,w*0.9,{hideA:true,det:{ribs:3,line:0.75}});
    for(const s of [-1,1]) for(const f of [-1,1]){
      const y0=f*E.y*0.42;
      LEG.chain(B,[
@@ -1267,7 +1404,7 @@ drive:[
       put the hull three storeys up. A tracked machine gets half the height and
       spends the rest on wheelbase, which is what makes it read as squat. */
    const L=E.x*0.46, w=E.z*0.5, len=L*rr(0.95,1.25), r=L*0.42;
-   B.box([L*0.2,0,0],L*0.22,len*0.4,w*0.9,{hideA:true,det:{ribs:4,line:0.7}});
+   FORM.block(B,[L*0.2,0,0],L*0.22,len*0.4,w*0.9,{hideA:true,det:{ribs:4,line:0.7}});
    for(const s of [-1,1]){
      const z=s*w*1.05;
      /* sprocket aft, idler fore, road wheels between, and a real grouser run
@@ -1287,7 +1424,7 @@ drive:[
  }},
 {n:"WHEELED",cls:"ROLLER",make(B,mr,rr,R,E,probe,P){
    const L=E.x*0.5, w=E.z*0.5, len=L*rr(1.0,1.35), r=L*0.34;
-   B.box([L*0.26,0,0],L*0.26,len*0.42,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
+   FORM.block(B,[L*0.26,0,0],L*0.26,len*0.42,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
    const nb=Math.max(2,GK.n(3));
    for(const s of [-1,1]) for(let i=0;i<nb;i++){
      const y=(-0.62+1.24*i/(nb-1||1))*len;
@@ -1302,12 +1439,12 @@ drive:[
  }},
 {n:"HOVER",cls:"SKIMMER",make(B,mr,rr,R,E,probe,P){
    const L=E.x*0.42, w=E.z*0.6, len=L*rr(1.1,1.5);
-   B.box([L*0.24,0,0],L*0.24,len*0.5,w*0.9,{hideA:true,det:{ribs:3,line:0.7}});
+   FORM.block(B,[L*0.24,0,0],L*0.24,len*0.5,w*0.9,{hideA:true,det:{ribs:3,line:0.7}});
    /* the skirt is a lathe-free ring of plates so it can be read edge-on */
    const N=GK.n(10);
    for(let i=0;i<N;i++){
      const a=i/N*Math.PI*2;
-     B.box([L*0.62,Math.cos(a)*len*0.85,Math.sin(a)*w*0.95],L*0.3,len*0.1,w*0.1,
+     FORM.block(B,[L*0.62,Math.cos(a)*len*0.85,Math.sin(a)*w*0.95],L*0.3,len*0.1,w*0.1,
            {det:{ribs:3,line:0.8}});
    }
    for(const s of [-1,1]) for(const f of [-1,1]){
@@ -1326,31 +1463,47 @@ drive:[
    joint with a ram across it, and runs one conduit the whole length — so a
    spider's third knee and a biped's only knee are the same machine. */
 const LEG={
+  /* A leg used to be a string of truncated cones with a ball at each kink,
+     which is exactly what plumbing looks like. Now every bone swells through
+     its belly and thins at both joints, and every joint gets a flared cap that
+     overhangs the bone below it — the knee armour that stops a limb reading as
+     two pipes meeting. The ram that drives the NEXT joint is anchored on THIS
+     bone, which is what makes it read as powered rather than as a chain. */
   chain(B,pts,rad,rr,o){
     o=o||{};
     for(let i=0;i<pts.length-1;i++){
       const a=pts[i], b=pts[i+1], r1=rad[i], r2=rad[i+1];
-      B.tube(a,b,r1,r2,Object.assign({det:hullDet([0.3,0.62,0.88],[0.5,2.4,4.1],[])},
-             i===0?{hideA:true}:{}));
-      if(i<pts.length-2){
-        /* the ram that drives the NEXT joint is anchored on THIS bone, which is
-           what makes the leg read as powered rather than as a string of cones */
-        const m=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
-        GK.piston(B,m(0.28),pts[i+2]?m(0.92):b,r2*0.34);
-      }
+      const m=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
+      FORM.bone(B,a,b,Math.max(r1,r2),{
+        r0:r1/Math.max(r1,r2)*1.02,r1:r2/Math.max(r1,r2)*0.98,
+        swell:i===0?0.20:0.13,mid:i===0?0.46:0.38,
+        opt:i===0?{hideA:true}:{}});
       if(o.plate&&i<2){
-        const m=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
-        B.box(m(0.5),Math.abs(b[0]-a[0])*0.4+r1*0.3,r1*0.95,r1*0.75,
-              {det:{ribs:4,line:0.75}});
+        /* the armour shell over the thigh or shin: a lozenge, standing proud of
+           the bone, stopping short of both joints so the frame shows through */
+        FORM.slab(B,m(0.52),[b[0]-a[0],b[1]-a[1],b[2]-a[2]],
+          Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2])*0.34,r1*1.16,r1*0.86,
+          {det:{ribs:4,line:0.75}});
       }
+      if(i<pts.length-2) GK.piston(B,m(0.30),pts[i+2]?m(0.94):b,r2*0.30);
     }
     for(let i=1;i<pts.length-1;i++){
-      const r=rad[i];
-      GK.gear(B,pts[i],"z",r*1.1,12);
-      B.ball(pts[i],r*0.92,{det:hullDet([0.4,0.75],[],[])});
-      GK.bolts(B,pts[i],"z",r*0.7,8);
+      const r=rad[i], a=pts[i-1], b=pts[i], c=pts[i+1];
+      GK.gear(B,pts[i],"z",r*1.04,12);
+      B.ball(pts[i],r*0.86,{det:hullDet([0.4,0.75],[],[])});
+      /* the cap points along the bisector of the two bones, so a knee that
+         bends forward gets its armour on the front and a reverse joint gets it
+         on the back without either of them being told which it is */
+      const n1=(()=>{const d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],L2=Math.hypot(d[0],d[1],d[2])||1;
+        return [d[0]/L2,d[1]/L2,d[2]/L2];})();
+      const n2=(()=>{const d=[c[0]-b[0],c[1]-b[1],c[2]-b[2]],L2=Math.hypot(d[0],d[1],d[2])||1;
+        return [d[0]/L2,d[1]/L2,d[2]/L2];})();
+      const bis=[n1[0]-n2[0],n1[1]-n2[1],n1[2]-n2[2]];
+      const bl=Math.hypot(bis[0],bis[1],bis[2]);
+      if(bl>0.12) FORM.cap(B,pts[i],[bis[0]/bl,bis[1]/bl,bis[2]/bl],r*0.94,{len:1.6});
+      GK.bolts(B,pts[i],"z",r*0.66,8);
     }
-    GK.hose(B,pts[0],pts[pts.length-1],rad[0]*0.22,Math.max(6,GK.n(9)));
+    GK.hose(B,pts[0],pts[pts.length-1],rad[0]*0.20,Math.max(6,GK.n(9)));
   },
   /* four terminations, because what a leg stands on says more about the class
      than the leg does: a plate foot, a talon, a round pad, a bare spike */
@@ -1359,28 +1512,39 @@ const LEG={
     B.ball(at,r*0.7);
     GK.gear(B,at,"z",r*0.8,10);
     if(kind==="plate"){
-      B.box([x+size*0.5,y+size*0.35,z],size*0.5,size*1.5,r*1.05,{det:{ribs:4,line:0.7}});
-      B.box([x+size*0.9,y+size*0.3,z],size*0.14,size*1.4,r*1.0,{det:{ribs:6,line:0.85}});
-      for(let i=0;i<3;i++) B.box([x+size*0.72,y+size*(1.2-i*0.9),z],size*0.3,size*0.16,r*0.9);
-      GK.piston(B,[x-size*0.4,y-size*0.5,z],[x+size*0.4,y-size*0.9,z],r*0.2);
+      /* the sole is a lozenge with the corners taken off and a raised toe, not
+         a shoebox — a flat rectangle under a shaped leg is the tell */
+      FORM.slab(B,[x+size*0.55,y+size*0.30,z],[0,1,0],size*1.45,r*1.02,size*0.46,
+        {chamfer:0.62,det:{ribs:4,line:0.72}});
+      B.lathe([x+size*0.30,y+size*1.30,z],[0,1,0],
+        [[0,r*0.78],[size*0.34,r*0.62],[size*0.55,r*0.30]],
+        hullDet([0.4],[],[]),{ell:[1,0.55]});
+      for(let i=0;i<3;i++)
+        FORM.slab(B,[x+size*0.86,y+size*(1.05-i*0.85),z],[0,0,1],r*0.86,size*0.20,size*0.16,
+          {chamfer:0.6});
+      GK.piston(B,[x-size*0.36,y-size*0.5,z],[x+size*0.40,y-size*0.92,z],r*0.20);
     }else if(kind==="talon"){
-      B.tube([x,y,z],[x+size*0.5,y+size*0.9,z],r*0.8,r*0.5);
+      FORM.bone(B,[x,y,z],[x+size*0.55,y+size*0.95,z],r*0.86,{swell:0.14,mid:0.4});
       for(const s of [-1,0,1]){
-        B.cap([x+size*0.5,y+size*0.9,z+s*r*0.6],[x+size*0.95,y+size*1.9,z+s*r*0.85],r*0.24);
-        B.cap([x+size*0.95,y+size*1.9,z+s*r*0.85],[x+size*1.05,y+size*2.3,z+s*r*0.9],r*0.12);
+        FORM.bone(B,[x+size*0.5,y+size*0.9,z+s*r*0.6],[x+size*0.95,y+size*1.9,z+s*r*0.85],
+          r*0.28,{swell:0.16,r1:0.5});
+        B.lathe([x+size*0.95,y+size*1.9,z+s*r*0.85],
+          [size*0.12,size*0.44,0],[[0,r*0.16],[size*0.30,r*0.09],[size*0.46,r*0.01]],
+          hullDet([0.5],[],[]));
       }
-      B.cap([x+size*0.3,y-size*0.2,z],[x+size*0.8,y-size*1.1,z],r*0.2);
+      FORM.bone(B,[x+size*0.30,y-size*0.2,z],[x+size*0.82,y-size*1.1,z],r*0.24,{r1:0.42});
     }else if(kind==="pad"){
-      B.tube([x,y,z],[x+size*1.1,y,z],r*0.85,r*1.25,{det:hullDet([0.5],[],[])});
-      B.disc([x+size*1.12,y,z],[1,0,0],r*1.2,r*0.5);
-      GK.bolts(B,[x+size*1.05,y,z],"x",r*0.95,8);
+      B.lathe([x,y,z],[1,0,0],[[0,r*0.80],[size*0.42,r*1.10],[size*0.86,r*1.26],
+        [size*1.10,r*1.20]],hullDet([0.35,0.7],[],[]),{ell:[1,0.86]});
+      B.disc([x+size*1.12,y,z],[1,0,0],r*1.18,r*0.5);
+      GK.bolts(B,[x+size*1.05,y,z],"x",r*0.94,8);
     }else{
-      B.tube([x,y,z],[x+size*1.6,y+size*0.3,z],r*0.7,r*0.14);
+      B.lathe([x,y,z],[size*1.6,size*0.3,0],
+        [[0,r*0.72],[size*0.5,r*0.52],[size*1.1,r*0.24],[size*1.63,r*0.03]],
+        hullDet([0.3,0.62],[],[]));
       B.disc([x+size*0.5,y+size*0.1,z],[1,0,0],r*0.75,r*0.3);
     }
   },
-  /* a road wheel, a sprocket, an idler and a return roller are one part with
-     four dressings — hub, rim, and whatever the class needs on the rim */
   wheel(B,c,r,halfw,rr,kind){
     const [x,y,z]=c, s=z>=0?1:-1;
     B.tube([x,y,z-halfw*s],[x,y,z+halfw*s],r,r,
@@ -1642,7 +1806,7 @@ const TUB=(a,b,r1,r2,o)=>Object.assign({k:"tube",a,b,r1,r2},o||{});
 const BOX=(c,u,v,w,o)=>Object.assign({k:"box",c,u,v,w},o||{});
 const SPH=(c,r,o)=>Object.assign({k:"sphere",c,r},o||{});
 const DSC=(c,n,r,ri,o)=>Object.assign({k:"disc",c,n,r,ri},o||{});
-const LTH=(c,axis,prof,det,o)=>Object.assign({k:"lathe",c,axis,prof,det},o||{});
+const LTH=(c,axis,prof,det,o)=>Object.assign({k:"lathe",c,axis,prof},lathNorm(prof,Object.assign({det},o||{})));
 const PNL=(pts,pts2,n,th,det,o)=>Object.assign({k:"panel",pts,pts2,n,th,skipSide:-1,det},o||{});
 const FR=(o,f,u,s,E,solo,sr)=>({fr:{o,f,u,s},E,solo:!!solo,sr});
 const hullDet=(rings,longs,ports)=>({rings,longs,ports});
@@ -1654,67 +1818,107 @@ const hullDet=(rings,longs,ports)=>({rings,longs,ports});
    the abdomen of the next, and a two-section torso and a four-section torso
    are recognisably the same design language at different sizes.
    All coordinates here are mech-space: x fore, y up, z starboard. */
+/* A torso section is a body of revolution with an oval cross-section, not a
+   drum and not a box. Each one is given a multi-station profile so the mass
+   swells and pinches along its own length, on top of whatever the chassis
+   asked for — which is how two machines built from the same two sections still
+   read as different animals.
+   Axis is the mech's own vertical, so `ell` is [width, depth] and every torso
+   is wider than it is deep, the way a chest is. */
 const SECT=[
 {n:"DRUM",make(y0,y1,r,rr,out,d){
-  const h=y1-y0;
-  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo,r*d.hi,{det:hullDet([0.3,0.6,0.85],[0.4,2.2,3.9,5.4],[])}));
-  out.push(DSC([0,y0+h*0.5,0],[0,1,0],r*Math.max(d.lo,d.hi)*1.03,r*0.4));
+  const h=y1-y0, E=[d.wid,d.dep];
+  out.push(LTH([0,y0,0],[0,1,0],[
+    [0,r*d.lo*0.90],[h*0.10,r*d.lo],[h*0.5,r*(d.lo+d.hi)*0.52],
+    [h*0.90,r*d.hi],[h,r*d.hi*0.90]],
+    hullDet([0.3,0.6,0.85],[0.4,2.2,3.9,5.4],[]),{ell:E}));
+  out.push(DSC([0,y0+h*0.5,0],[0,1,0],r*(d.lo+d.hi)*0.54*Math.max(E[0],E[1]),r*0.4));
 }},
 {n:"SLAB",make(y0,y1,r,rr,out,d){
-  const h=y1-y0, c=[0,(y0+y1)/2,0];
-  out.push(BOX(c,[r*d.dep,0,0],[0,h*0.5,0],[0,0,r*d.wid],{det:{ribs:5,line:0.7}}));
-  out.push(BOX([r*d.dep*0.9,(y0+y1)/2,0],[r*d.dep*0.16,0,0],[0,h*0.42,0],[0,0,r*d.wid*0.7],
-    {det:{ribs:3,line:0.8}}));
+  const h=y1-y0;
+  /* the flat one — but a flattened oval with its corners taken off, not a box */
+  out.push(LTH([0,y0,0],[0,1,0],[
+    [0,r*d.lo*0.86],[h*0.12,r*d.lo],[h*0.55,r*(d.lo*0.4+d.hi*0.66)],
+    [h*0.92,r*d.hi],[h,r*d.hi*0.84]],
+    hullDet([0.25,0.5,0.75],[0.5,2.6,4.2],[]),{ell:[d.wid*1.14,d.dep*0.72]}));
+  out.push(PNL([[r*d.dep*0.62,y0+h*0.16,-r*d.wid*0.72],[r*d.dep*0.62,y0+h*0.16,r*d.wid*0.72],
+                [r*d.dep*0.52,y0+h*0.86,r*d.wid*0.58],[r*d.dep*0.52,y0+h*0.86,-r*d.wid*0.58]],
+    null,[1,0,0],r*0.08,{ribs:5,line:0.72}));
 }},
 {n:"WEDGE",make(y0,y1,r,rr,out,d){
   const h=y1-y0;
-  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo*1.1,r*d.hi*0.72,{det:hullDet([0.35,0.7],[0.5,3.0],[])}));
-  out.push(BOX([r*d.dep*0.7,y0+h*0.35,0],[r*d.dep*0.4,0,0],[0,h*0.3,0],[0,0,r*d.wid*0.8],
-    {det:{ribs:4,line:0.75}}));
+  /* the chest that flares to the yokes: narrow at the belt, thrown out wide at
+     the top, and pulled back in at the collar. The trapezoid, as a solid. */
+  out.push(LTH([0,y0,0],[0,1,0],[
+    [0,r*d.lo*0.88],[h*0.14,r*d.lo*0.96],[h*0.52,r*(d.lo*0.3+d.hi*0.82)],
+    [h*0.84,r*d.hi*1.10],[h*0.96,r*d.hi*0.96],[h,r*d.hi*0.72]],
+    hullDet([0.3,0.62,0.88],[0.4,2.4,4.1],[]),{ell:[d.wid*1.10,d.dep*0.86]}));
+  for(const s of [-1,1])
+    out.push(TUB([r*d.dep*0.30,y0+h*0.70,s*r*d.wid*0.86],[r*d.dep*0.52,y0+h*0.86,s*r*d.wid*1.02],
+      r*0.20,r*0.13,{det:hullDet([0.5],[],[])}));
 }},
 {n:"BARREL",make(y0,y1,r,rr,out,d){
-  const h=y1-y0, m=(y0+y1)/2;
-  out.push(TUB([0,y0,0],[0,m,0],r*d.lo,r*Math.max(d.lo,d.hi)*1.12,{det:hullDet([0.4,0.8],[],[])}));
-  out.push(TUB([0,m,0],[0,y1,0],r*Math.max(d.lo,d.hi)*1.12,r*d.hi,{det:hullDet([0.3,0.7],[0.4,2.6,4.4],[])}));
-  out.push(DSC([0,m,0],[0,1,0],r*Math.max(d.lo,d.hi)*1.16,r*0.5));
+  const h=y1-y0, m=Math.max(d.lo,d.hi)*1.16;
+  out.push(LTH([0,y0,0],[0,1,0],[
+    [0,r*d.lo*0.84],[h*0.08,r*d.lo],[h*0.34,r*m*0.94],[h*0.56,r*m],
+    [h*0.86,r*d.hi*1.04],[h,r*d.hi*0.86]],
+    hullDet([0.24,0.48,0.72,0.9],[0.4,2.2,3.9,5.4],[]),{ell:[d.wid*1.06,d.dep*0.94]}));
+  out.push(DSC([0,y0+h*0.50,0],[0,1,0],r*m*1.04*d.wid,r*0.5));
 }},
 {n:"CAGE",make(y0,y1,r,rr,out,d){
   const h=y1-y0, N=6;
+  /* an open frame, so nothing to smooth — but the longerons bow outward at the
+     chest instead of running dead straight, which is the same silhouette the
+     shelled sections have */
   for(let i=0;i<N;i++){const a=i/N*Math.PI*2;
-    out.push(TUB([Math.cos(a)*r*d.lo*d.dep,y0,Math.sin(a)*r*d.lo*d.wid],
-                 [Math.cos(a)*r*d.hi*d.dep,y1,Math.sin(a)*r*d.hi*d.wid],r*0.12,r*0.1));}
+    const R0=r*d.lo, R1=r*(d.lo+d.hi)*0.58, R2=r*d.hi;
+    out.push(TUB([Math.cos(a)*R0*d.dep,y0,Math.sin(a)*R0*d.wid],
+                 [Math.cos(a)*R1*d.dep,y0+h*0.5,Math.sin(a)*R1*d.wid],r*0.12,r*0.11));
+    out.push(TUB([Math.cos(a)*R1*d.dep,y0+h*0.5,Math.sin(a)*R1*d.wid],
+                 [Math.cos(a)*R2*d.dep,y1,Math.sin(a)*R2*d.wid],r*0.11,r*0.1));}
   for(const k of [0.16,0.5,0.84])
-    out.push(DSC([0,y0+h*k,0],[0,1,0],r*(d.lo+(d.hi-d.lo)*k)*0.95,r*0.55));
-  out.push(BOX([0,y0+h*0.5,0],[r*d.dep*0.34,0,0],[0,h*0.3,0],[0,0,r*d.wid*0.34],
-    {det:{ribs:3,line:0.8}}));
+    out.push(DSC([0,y0+h*k,0],[0,1,0],r*(d.lo+(d.hi-d.lo)*k)*0.95*d.wid,r*0.55));
+  out.push(LTH([0,y0+h*0.22,0],[0,1,0],[[0,r*0.30],[h*0.24,r*0.40],[h*0.56,r*0.30]],
+    hullDet([0.4],[],[]),{ell:[d.wid*0.9,d.dep*0.9]}));
 }},
 {n:"FACETED",make(y0,y1,r,rr,out,d){
   const h=y1-y0, N=8;
+  /* cut from plate rather than turned, and the mid station is what keeps it
+     from being a prism: eight facets above the waist, eight below, meeting on
+     a shoulder line */
+  const R=k=>r*(d.lo+(d.hi-d.lo)*k)*(k<0.6?0.86+0.32*k:1.05-0.12*(k-0.6));
   for(let i=0;i<N;i++){
-    const a0=i/N*Math.PI*2, a1=(i+1)/N*Math.PI*2;
-    out.push(PNL([[Math.cos(a0)*r*d.lo*d.dep,y0,Math.sin(a0)*r*d.lo*d.wid],
-                  [Math.cos(a1)*r*d.lo*d.dep,y0,Math.sin(a1)*r*d.lo*d.wid],
-                  [Math.cos(a1)*r*d.hi*d.dep,y1,Math.sin(a1)*r*d.hi*d.wid],
-                  [Math.cos(a0)*r*d.hi*d.dep,y1,Math.sin(a0)*r*d.hi*d.wid]],null,
-      V.norm([Math.cos((a0+a1)/2),0,Math.sin((a0+a1)/2)]),r*0.09,{ribs:3,line:0.75}));
+    const a0=i/N*Math.PI*2, a1=(i+1)/N*Math.PI*2, am=(a0+a1)/2;
+    const P=(a,k)=>[Math.cos(a)*R(k)*d.dep,y0+h*k,Math.sin(a)*R(k)*d.wid];
+    out.push(PNL([P(a0,0),P(a1,0),P(a1,0.58),P(a0,0.58)],null,
+      V.norm([Math.cos(am)*d.dep,0.12,Math.sin(am)*d.wid]),r*0.09,{ribs:3,line:0.75}));
+    out.push(PNL([P(a0,0.58),P(a1,0.58),P(a1,1),P(a0,1)],null,
+      V.norm([Math.cos(am)*d.dep,-0.18,Math.sin(am)*d.wid]),r*0.09,{ribs:2,line:0.8}));
   }
 }},
 {n:"RIBBED",make(y0,y1,r,rr,out,d){
   const h=y1-y0;
-  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo*0.86,r*d.hi*0.86,{det:hullDet([0.5],[0.4,2.2,3.9],[])}));
+  out.push(LTH([0,y0,0],[0,1,0],[
+    [0,r*d.lo*0.82],[h*0.1,r*d.lo*0.88],[h*0.5,r*(d.lo+d.hi)*0.46],
+    [h*0.9,r*d.hi*0.88],[h,r*d.hi*0.82]],
+    hullDet([0.5],[0.4,2.2,3.9],[]),{ell:[d.wid,d.dep*0.92]}));
   const N=Math.max(3,Math.round(4*(0.5+GK.q)));
   for(let i=0;i<N;i++){
     const k=(i+0.5)/N, rr2=r*(d.lo+(d.hi-d.lo)*k);
-    out.push(DSC([0,y0+h*k,0],[0,1,0],rr2*1.06,rr2*0.6));
-    out.push(TUB([0,y0+h*k-h*0.02,0],[0,y0+h*k+h*0.02,0],rr2*1.02,rr2*1.02));
+    out.push(LTH([0,y0+h*k-h*0.035,0],[0,1,0],
+      [[0,rr2*0.94],[h*0.03,rr2*1.06],[h*0.07,rr2*0.94]],
+      hullDet([0.5],[],[]),{ell:[d.wid,d.dep*0.92]}));
   }
 }},
 {n:"TAPERED",make(y0,y1,r,rr,out,d){
   const h=y1-y0;
-  out.push(TUB([0,y0,0],[0,y1,0],r*d.lo*1.14,r*d.hi*0.66,
-    {det:hullDet([0.22,0.44,0.66,0.88],[0.4,2.0,3.6,5.2],[])}));
-  out.push(BOX([-r*d.dep*0.72,y0+h*0.6,0],[r*d.dep*0.24,0,0],[0,h*0.34,0],[0,0,r*d.wid*0.5],
-    {det:{ribs:4,line:0.8}}));
+  out.push(LTH([0,y0,0],[0,1,0],[
+    [0,r*d.lo*1.02],[h*0.16,r*d.lo*1.14],[h*0.46,r*(d.lo*0.5+d.hi*0.5)],
+    [h*0.80,r*d.hi*0.80],[h,r*d.hi*0.58]],
+    hullDet([0.22,0.44,0.66,0.88],[0.4,2.0,3.6,5.2],[]),{ell:[d.wid*1.04,d.dep*0.88]}));
+  out.push(PNL([[-r*d.dep*0.66,y0+h*0.30,-r*d.wid*0.46],[-r*d.dep*0.66,y0+h*0.30,r*d.wid*0.46],
+                [-r*d.dep*0.50,y0+h*0.92,r*d.wid*0.34],[-r*d.dep*0.50,y0+h*0.92,-r*d.wid*0.34]],
+    null,[-1,0,0],r*0.08,{ribs:4,line:0.8}));
 }}
 ];
 const JOINT=[
@@ -1819,9 +2023,20 @@ function mechSockets(c,parts,rr,R,P,lock){
   S.aux=FR([leanX*auxY,auxY,auxZ],star,up,fore,{x:TR*0.7,y:TR*0.7,z:TR*0.7});
   return {sockets:S,sr:TR,torso};
 }
-const P0=t=>1-0.12*t;                       /* a mild taper is the default torso */
+/* The torso profile, and the single biggest reason the machines read as boxes
+   or don't. A monotonic taper — which is all the hull ever needed — gives a
+   tube with a lid. Every mecha chest worth the name is an inverted triangle
+   over a pinched waist: narrow at the belt, thrown wide at the yokes, drawn
+   back in at the collar. HOUR is that curve, smoothstepped so the flare is a
+   shoulder rather than a corner, and each chassis just says how hard to pinch. */
+const HOUR=(waist,chest,collar)=>t=>{
+  if(t>=0.80) return chest+(collar-chest)*((t-0.80)/0.20);
+  const u=t/0.80;
+  return waist+(chest-waist)*(u*u*(3-2*u));
+};
+const P0=HOUR(0.72,1.04,0.88);              /* the default torso is an hourglass */
 const base=o=>Object.assign({
-  TH:34,TR:11,dep:1.0,wid:1.0,shY:29,shZ:15,neckH:5,armR:3.6,armL:15,foreL:15,
+  TH:34,TR:11,dep:0.86,wid:1.14,shY:29,shZ:15,neckH:5,armR:3.6,armL:15,foreL:15,
   hipH:7,hipW:11,driveL:44,chestY:22,backY:24,waistY:3,prof:P0,auxY:26,auxZ:12,leanX:0
 },o);
 
@@ -1830,21 +2045,21 @@ const TOPO=[
  make(R,rr,P,parts,lock){return mechSockets(base({
    TH:rr(32,38),TR:rr(10,12),dep:rr(0.85,1.0),wid:rr(0.95,1.15),
    shY:rr(28,32),shZ:rr(14,17),armL:rr(14,17),foreL:rr(13,16),driveL:rr(42,50),
-   prof:t=>0.78+0.42*t-0.2*t*t
+   prof:HOUR(rr(0.58,0.66),rr(1.04,1.12),rr(0.82,0.90))
  }),parts,rr,R,P,lock);}},
 {n:"BARREL",axial:false,note:"squat and wide; the yoke sits at mid-chest",
  make(R,rr,P,parts,lock){return mechSockets(base({
    TH:rr(22,27),TR:rr(13,16),dep:rr(1.0,1.2),wid:rr(1.15,1.4),
    shY:rr(17,21),shZ:rr(17,21),armL:rr(10,13),foreL:rr(10,13),
    hipH:rr(5,8),hipW:rr(13,17),driveL:rr(30,40),chestY:rr(13,17),backY:rr(14,19),
-   prof:t=>1.0+0.1*Math.sin(t*3.1)
+   prof:HOUR(rr(0.88,0.96),rr(1.08,1.16),rr(0.96,1.04))
  }),parts,rr,R,P,lock);}},
 {n:"HUNCHBACK",axial:false,note:"head sunk between the yokes, mass carried aft",
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(26,31),TR:rr(11,14),dep:rr(1.1,1.35),wid:rr(1.0,1.2),
      shY:rr(24,29),shZ:rr(15,19),neckH:rr(1.6,3),armL:rr(12,15),foreL:rr(12,16),
      driveL:rr(34,44),backY:rr(20,26),leanX:rr(-0.16,-0.08),
-     prof:t=>0.8+0.5*t-0.34*t*t});
+     prof:HOUR(rr(0.62,0.72),rr(1.00,1.08),rr(0.76,0.84))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    /* the dorsal hump is chassis so the backpack variant lands on top of it */
    parts.push(CAP([-c.TR*1.0,c.TH*0.72,0],[-c.TR*1.5,c.TH*0.42,0],c.TR*0.6,
@@ -1857,7 +2072,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(30,36),TR:rr(11,14),dep:rr(0.9,1.05),wid:rr(0.95,1.15),
      shY:rr(26,32),shZ:rr(15,19),armL:rr(13,17),foreL:rr(12,16),driveL:rr(38,48),
-     prof:t=>0.9+0.16*t});
+     prof:HOUR(rr(0.76,0.86),rr(0.98,1.06),rr(0.86,0.94))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
      parts.push(TUB([Math.cos(a)*c.TR*0.95,0,Math.sin(a)*c.TR*0.95],
@@ -1871,7 +2086,7 @@ const TOPO=[
    const c=base({TH:rr(20,25),TR:rr(13,16),dep:rr(1.0,1.1),wid:rr(1.0,1.1),
      shY:rr(14,18),shZ:rr(16,20),neckH:rr(1.4,2.6),armL:rr(10,13),foreL:rr(10,14),
      hipH:rr(4,6),hipW:rr(14,18),driveL:rr(28,40),chestY:rr(11,15),backY:rr(12,17),
-     prof:t=>1.02-0.06*t});
+     prof:HOUR(rr(0.96,1.04),rr(1.04,1.12),rr(0.92,1.00))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    parts.push(DSC([0,-c.hipH*0.2,0],[0,1,0],c.TR*1.25,c.TR*0.7));
    for(let i=0;i<16;i++){const a=i/16*Math.PI*2;
@@ -1883,7 +2098,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(26,32),TR:rr(8,10),dep:rr(1.0,1.2),wid:rr(0.9,1.1),
      shY:rr(23,29),shZ:rr(17,22),armL:rr(12,16),foreL:rr(12,16),
-     hipW:rr(14,18),driveL:rr(36,46),prof:t=>0.9+0.2*t});
+     hipW:rr(14,18),driveL:rr(36,46),prof:HOUR(rr(0.62,0.72),rr(0.96,1.04),rr(0.80,0.88))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    /* the second mass is placed off the centreline; the mirror pass makes it a
       pair, and everything bolted to it comes along for free */
@@ -1898,7 +2113,7 @@ const TOPO=[
    const c=base({TH:rr(24,29),TR:rr(11,14),dep:rr(1.25,1.5),wid:rr(1.0,1.15),
      shY:rr(17,22),shZ:rr(15,19),neckH:rr(2,3.4),armL:rr(12,16),foreL:rr(12,16),
      driveL:rr(32,42),chestY:rr(16,21),leanX:rr(0.05,0.14),
-     prof:t=>1.05-0.3*t});
+     prof:HOUR(rr(0.82,0.92),rr(1.02,1.10),rr(0.66,0.76))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    parts.push(TUB([c.TR*0.8,c.TH*0.66,0],[c.TR*2.0,c.TH*0.56,0],c.TR*0.75,c.TR*0.5,
      {det:hullDet([0.4,0.75],[0.3,1.2,2.1,3.0,3.9,4.8],[])}));
@@ -1911,7 +2126,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(28,34),TR:rr(12,15),dep:rr(0.75,0.9),wid:rr(1.2,1.45),
      shY:rr(24,30),shZ:rr(16,20),neckH:rr(2,3.6),armL:rr(12,16),foreL:rr(12,16),
-     driveL:rr(36,46),prof:t=>0.95+0.12*t-0.1*t*t});
+     driveL:rr(36,46),prof:HOUR(rr(0.66,0.76),rr(1.06,1.16),rr(0.84,0.92))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    for(const s of [-1,1])
      parts.push(PNL([[s*c.TR*0.5,0,c.TR*c.wid*0.95],[s*c.TR*0.9,c.TH*0.55,c.TR*c.wid*1.05],
@@ -1924,27 +2139,29 @@ const TOPO=[
    TH:rr(40,48),TR:rr(8,10),dep:rr(0.9,1.05),wid:rr(0.9,1.05),
    shY:rr(35,44),shZ:rr(12,15),armL:rr(18,23),foreL:rr(17,22),
    hipH:rr(7,10),hipW:rr(9,12),driveL:rr(46,58),chestY:rr(26,34),backY:rr(28,36),
-   auxY:rr(30,38),prof:t=>0.8+0.36*t-0.14*t*t
+   auxY:rr(30,38),prof:HOUR(rr(0.54,0.62),rr(0.98,1.06),rr(0.78,0.86))
  }),parts,rr,R,P,lock);}},
 {n:"CRADLE",axial:false,note:"torso slung low between the hips — a quadruped's build",
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(18,23),TR:rr(13,16),dep:rr(1.3,1.6),wid:rr(1.1,1.3),
      shY:rr(13,17),shZ:rr(16,20),neckH:rr(3,5),armL:rr(9,12),foreL:rr(9,13),
      hipH:rr(3,5),hipW:rr(16,21),driveL:rr(26,36),chestY:rr(10,14),backY:rr(10,15),
-     waistY:rr(1,3),prof:t=>1.0-0.14*t});
+     waistY:rr(1,3),prof:HOUR(rr(0.84,0.94),rr(1.04,1.12),rr(0.86,0.94))});
    const m=mechSockets(c,parts,rr,R,P,lock);
-   parts.push(BOX([0,c.TH*0.2,0],[c.TR*c.dep*1.1,0,0],[0,c.TH*0.2,0],[0,0,c.TR*c.wid*1.15],
-     {det:{ribs:5,line:0.7}}));
+   parts.push(LTH([0,c.TH*0.2,-c.TR*c.wid*1.15],[0,0,1],
+     [[0,c.TR*0.30],[c.TR*c.wid*0.5,c.TR*0.40],[c.TR*c.wid*1.8,c.TR*0.40],[c.TR*c.wid*2.3,c.TR*0.30]],
+     null,{ell:[c.TH*0.20/(c.TR*0.40),c.dep*1.1/0.40]}));
    return m;
  }},
 {n:"PACK",axial:false,note:"the backpack IS the torso; the front is a thin plate",
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(26,32),TR:rr(10,13),dep:rr(0.7,0.85),wid:rr(1.0,1.2),
      shY:rr(23,29),shZ:rr(14,18),armL:rr(12,16),foreL:rr(12,16),
-     driveL:rr(34,44),backY:rr(16,22),leanX:rr(-0.1,-0.03),prof:t=>0.9+0.2*t});
+     driveL:rr(34,44),backY:rr(16,22),leanX:rr(-0.1,-0.03),prof:HOUR(rr(0.62,0.72),rr(0.96,1.04),rr(0.80,0.88))});
    const m=mechSockets(c,parts,rr,R,P,lock);
-   parts.push(BOX([-c.TR*1.5,c.TH*0.55,0],[c.TR*0.9,0,0],[0,c.TH*0.42,0],[0,0,c.TR*c.wid*1.1],
-     {det:{ribs:4,line:0.7}}));
+   parts.push(LTH([-c.TR*1.5,c.TH*0.13,0],[0,1,0],
+     [[0,c.TR*0.62],[c.TH*0.14,c.TR*0.80],[c.TH*0.70,c.TR*0.80],[c.TH*0.84,c.TR*0.58]],
+     null,{ell:[c.wid*1.38,1.12]}));
    m.sockets.back=FR([-c.TR*2.4,c.TH*0.55,0],[-1,0,0],[0,1,0],[0,0,1],
      {x:c.TR*1.9,y:c.TH*0.5,z:c.TR*c.wid*1.6});
    m.sockets.aux=FR([-c.TR*1.5,c.TH*0.86,c.TR*c.wid*1.1],[0,0,1],[0,1,0],[1,0,0],

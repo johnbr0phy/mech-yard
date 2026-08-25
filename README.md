@@ -53,6 +53,27 @@ TURRET** — sharing one kit of crown, faceplate, eyes, jaw, cheek pods and ear
 vents, so the cheek pod on a mono-eye is the cheek pod on a V-fin and the
 machines look related even when their faces do not.
 
+### Bodies and limbs
+
+Blockiness is a vocabulary problem, not a rendering one. The renderer has always
+known how to draw a body of revolution — silhouette by convex hull, real
+stations, proper meridians, elliptical cross-sections — but only the chassis
+could make one, so every arm and every armour plate in the library was stuck
+being a box or a constant-radius cylinder. The variant builder can make them
+now, and three rules follow from mecha construction:
+
+1. **The torso is an hourglass, not a taper.** Narrow at the belt, thrown wide
+   at the yokes, drawn back in at the collar — the chest trapezoid, as a solid.
+   Each chassis just says how hard to pinch.
+2. **Bones swell through the belly and thin at both joints.** A constant radius
+   reads as plumbing. Every joint then gets a flared cap that overhangs the bone
+   below it, pointed along the bisector of the two bones — so a knee that bends
+   forward is armoured on the front and a reverse joint on the back, without
+   either being told which it is.
+3. **Armour is a lozenge with its corners taken off**, standing proud of the
+   frame and stopping short of both joints so the frame shows through. Cross
+   sections are oval: wider than deep on a chest, on a shin, on a plate.
+
 Detail elsewhere is a property of the machine rather than of whichever variant
 got the most care: pistons flank every joint, ribbed conduit runs between plates, there is a
 toothed ring at every axis of rotation, and bolt circles and louvre stacks come
