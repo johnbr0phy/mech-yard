@@ -141,7 +141,20 @@ corners are the eight points of a box furthest from its own bulk, and a louvre
 seated snugly in a curved shell has all eight of them poking out through the
 surface.
 
-Measured across 40 machines, that took floating parts from 0.90% to 0.24%.
+Chained sockets get a second rule. A child is placed a fixed way along its
+parent's *envelope* — the humerus at 0.70 of the yoke's allowance — and that is
+only right if variants fill their envelopes, which they do not: a missile box
+takes half the yoke it is given, so the arm hung at a spread the yoke never
+reached. The join was being placed against a promise instead of against the
+part. Now the parent is asked where it actually got to: project everything it
+built onto its own outward axis, take the furthest, put the child there. And a
+chained slot roots in **its parent only** — handing it the chassis as well let
+an arm count as attached because it grazed the torso, and the drag then stopped
+the moment it did.
+
+Measured across 30–80 machines: floating parts 0.90% → 0.06%, and detached
+chained joins — head to neck, humerus to yoke, forearm to humerus, drive to
+girdle — 8.1% → 0%.
 
 The drawing is real orthographic projection with hidden-line removal: each mech
 is tessellated once into a depth buffer, and every line is clipped against it, so

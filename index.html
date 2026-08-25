@@ -2611,10 +2611,38 @@ function buildMech(seed,P,lock){
   for(const h of HAND) for(const spec of SLOTS) if(spec.handed)
     jobs.push({id:spec.id,gid:spec.id+h,on:spec.on?spec.on+h:null,port:h==="L"});
 
+  /* ---- the chain rule, measured rather than assumed ----
+     A chained socket is placed a fixed way along its parent's ENVELOPE — the
+     head at 0.84 of the neck's allowance, the humerus at 0.68 of the yoke's.
+     That is only right if variants fill their envelopes, and they do not: a
+     missile box takes half the yoke it is given and varies the rest, so the arm
+     was left hanging at a spread the yoke never reached. Nothing was wrong with
+     the arm or the yoke; the join was placed against a promise instead of
+     against the part.
+     So ask the parent where it actually got to. Project everything it built
+     onto its own outward axis, take the furthest, and put the child there —
+     keeping whatever sideways offset the chassis asked for. Self-correcting for
+     every variant that already exists and every one added later. */
+  const REACH={head:0.92,upper:0.70,fore:0.86,drive:0.88};
+  const usedFr={};
   for(const spec of jobs){
     const id=spec.id, gid=spec.gid, base=chassis.sockets[id];
     if(!base)continue;
-    const sock=spec.port?Object.assign({},base,{fr:mirFrame(base.fr)}):base;
+    let sock=spec.port?Object.assign({},base,{fr:mirFrame(base.fr)}):base;
+    const pf=spec.on&&usedFr[spec.on];
+    if(pf&&groups[spec.on]&&groups[spec.on].length&&REACH[id]!=null){
+      const f=V.norm(pf.f);
+      let reach=0;
+      for(const q of groups[spec.on]) for(const [z] of partExtents(q))
+        reach=Math.max(reach,V.dot(V.sub(z,pf.o),f));
+      if(reach>1e-6){
+        const d=V.sub(sock.fr.o,pf.o), along=V.dot(d,f);
+        const perp=V.sub(d,V.mul(f,along));
+        sock=Object.assign({},sock,{fr:Object.assign({},sock.fr,
+          {o:V.add(pf.o,V.add(perp,V.mul(f,reach*REACH[id])))})});
+      }
+    }
+    usedFr[gid]=sock.fr;
     const list=VAR[id];
     let idx;
     if(lock&&lock[gid]!=null) idx=Math.min(lock[gid],list.length-1);
@@ -2632,8 +2660,14 @@ function buildMech(seed,P,lock){
     /* ---- attachment guarantee, per group, against its own parent ----
        A variant that ends up in mid-air is drawn back along its mounting
        direction until it bites. Dropped only if it never can. */
-    const anchor=spec.on&&groups[spec.on]&&!dropped.has(spec.on)
-      ? chassisSolids.concat(groups[spec.on]) : chassisSolids;
+    /* A chained socket must root in ITS PARENT, not in whatever happens to be
+       nearby. Handing it the chassis as well let an arm count as attached
+       because it grazed the torso, and the drag then stopped the moment it did
+       — leaving the humerus short of the yoke it is supposed to hang from,
+       which is the join anyone actually looks at. Parent only; the chassis is
+       the fallback for when the parent was dropped. */
+    const anchor=spec.on&&groups[spec.on]&&groups[spec.on].length&&!dropped.has(spec.on)
+      ? groups[spec.on] : chassisSolids;
     if(out.length&&!touches(out,anchor)){
       let cen=[0,0,0];
       for(const p of out)cen=V.add(cen,partCentroid(p));
