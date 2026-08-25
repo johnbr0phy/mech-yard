@@ -15,13 +15,21 @@ place the mech would actually come apart in a maintenance bay:
 | `head` | on top of the neck |
 | `chest` | frontal hardpoint / cockpit hatch |
 | `backpack` | dorsal spine plate |
-| `shoulder` | shoulder yoke, off the centreline |
-| `humerus` | upper arm below the yoke |
-| `forearm` | forearm and whatever terminates it |
+| `yoke R`/`L` | shoulder yoke, one per side, rolled separately |
+| `arm R`/`L` | upper arm below each yoke |
+| `fore R`/`L` | forearm and whatever terminates it |
 | `skirt` | armour hung off the belt |
 | `girdle` | pelvic girdle under the torso |
 | `drive` | everything below the hip |
 | `aux` | the free greeble socket |
+
+**The arms are handed.** Everything else is bilateral and the mirror pass gives
+that away for free, but a mirror can only ever build a machine holding two of
+the same thing — and one close-combat arm beside one ranged arm is not a
+variation on the Dreadnought pattern, it *is* the pattern. So each arm is a
+chain of its own: its own yoke, its own humerus, its own forearm, rolled
+independently and locked independently. They still agree about two times in
+five, because a matched pair is a real machine too.
 
 Three of the eleven are chained rather than placed: the head sits wherever the
 neck ended, the humerus wherever the yoke ended, the forearm wherever the

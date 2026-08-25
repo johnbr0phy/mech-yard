@@ -2239,8 +2239,8 @@ function composeTorso(y0,y1,r,rr,R,P,out,lock,d){
    Doing it this way is what keeps eleven skeletons from becoming eleven
    separate socket contracts that the variant library would have to know about. */
 function mechSockets(c,parts,rr,R,P,lock){
-  const {TH,TR,dep,shY,shZ,neckH,armR,armL,foreL,hipH,driveL,
-         chestY,backY,waistY,prof,auxY,auxZ,leanX}=c;
+  const {TH,TR,dep,shY,neckH,armR,armL,foreL,hipH,driveL,
+         chestY,backY,waistY,prof,auxY,leanX}=c;
   /* ---- two proportions the chassis is not allowed to get wrong ----
      A torso is taller than it is broad. The chassis numbers were free to make
      one broader — SLAB and BARREL both could — and a body wider than it is
@@ -2255,15 +2255,31 @@ function mechSockets(c,parts,rr,R,P,lock){
   const peak=TR*Math.max(prof(0.80),prof(1))*c.wid, capW=TH*0.42;
   const wid=peak>capW?c.wid*(capW/peak):c.wid;
   const hipW=Math.max(c.hipW,TR*wid*1.30);
+  /* And the yoke has to sit ON the shoulder. Capping the torso moved the body
+     in without moving the arms, so the yokes stayed where a wider machine would
+     have put them and the arms hung in space on long spindly stubs — connected
+     by the letter of the geometry and detached to any eye. Pin the spread to
+     the torso's actual half-width at yoke height, plus enough clearance for the
+     joint itself. Same for the free socket. */
+  /* The yoke socket sits ON the torso surface at shoulder height — not out in
+     space with a stub thrown across to reach it. The old arrangement asked a
+     chassis-drawn tube to bridge whatever gap the numbers happened to leave,
+     which worked while the torso was as wide as the chassis said and broke the
+     moment the width cap moved the body in without moving the arms. A socket
+     on the surface cannot leave a gap: the variant's own first rule is to start
+     buried and cover the mount, so the yoke grows out of the shoulder by
+     construction and the shoulder spread becomes a consequence of the torso
+     rather than a number that has to agree with it. */
+  const shR=TR*wid*prof(Math.max(0,Math.min(1,shY/TH)));
+  const shZ=shR*0.94;
+  const yokeL=Math.max(TR*0.95,Math.min(c.shZ,shR*1.9)-shZ);
+  const auxR=TR*wid*prof(Math.max(0,Math.min(1,auxY/TH)));
+  const auxZ=auxR*0.96;
   const torso=composeTorso(0,TH,TR,rr,R,P,parts,lock,{prof,dep,wid});
 
   /* the yoke stubs are chassis, not slot: the shoulder variant plugs into them,
      so an open-gimbal shoulder still has something to be a gimbal on */
-  for(const s of [-1,1]){
-    parts.push(TUB([leanX*shY,shY,s*TR*wid*prof(shY/TH)*0.7],[leanX*shY,shY,s*shZ],
-      TR*0.34,TR*0.30,{det:hullDet([0.4,0.8],[],[])}));
-    parts.push(SPH([leanX*shY,shY,s*shZ],TR*0.34));
-  }
+  for(const s of [-1,1]) parts.push(SPH([leanX*shY,shY,s*shZ*0.92],TR*0.36));
   parts.push(TUB([leanX*TH*0.98,TH*0.92,0],[leanX*TH,TH,0],TR*prof(0.92)*0.7,TR*0.4,{}));
   parts.push(TUB([0,-hipH,0],[0,0,0],TR*prof(0)*0.86,TR*0.8,{det:hullDet([0.5],[],[])}));
 
@@ -2280,10 +2296,13 @@ function mechSockets(c,parts,rr,R,P,lock){
              {x:TR*dep*0.8,y:TH*0.34,z:TR*wid*1.5});
   S.back=FR([leanX*backY-TR*dep*prof(backY/TH)*0.85,backY,0],[-1,0,0],up,star,
             {x:TR*dep*1.5,y:TH*0.42,z:TR*wid*1.7});
-  S.shoulder=FR([leanX*shY,shY,shZ],star,up,fore,{x:TR*0.95,y:TR*0.85,z:TR*dep*0.95});
-  S.upper=FR([leanX*shY,shY-TR*0.55,shZ+TR*0.62],down,fore,star,
+  S.shoulder=FR([leanX*shY,shY,shZ],star,up,fore,{x:yokeL,y:TR*0.85,z:TR*dep*0.95});
+  /* the arm hangs from 0.68 of the way out along whatever yoke got fitted, so
+     the humerus is always inside the pauldron rather than beyond its edge */
+  const armZ=shZ+yokeL*0.68;
+  S.upper=FR([leanX*shY,shY-TR*0.55,armZ],down,fore,star,
              {x:armL,y:armR*1.2,z:armR*1.2},false,armR);
-  S.fore=FR([leanX*shY,shY-TR*0.55-armL*0.84,shZ+TR*0.62],down,fore,star,
+  S.fore=FR([leanX*shY,shY-TR*0.55-armL*0.84,armZ],down,fore,star,
             {x:foreL,y:armR*1.15,z:armR*1.15},false,armR*0.9);
   S.waist=FR([leanX*waistY,waistY,0],down,fore,star,
              {x:TH*0.4,y:TR*dep*1.2,z:TR*wid*1.5},false,TR*prof(waistY/TH)*0.9);
@@ -2459,12 +2478,25 @@ const SLOTS=[
  {id:"waist",    on:null},
  {id:"hip",      on:null},
  {id:"drive",    on:"hip"},
- {id:"shoulder", on:null},
- {id:"upper",    on:"shoulder"},
- {id:"fore",     on:"upper"},
- {id:"aux",      on:null}
+ {id:"aux",      on:null},
+ /* ---- the arms are HANDED ----
+    Everything else on the machine is bilateral, and the mirror pass gives that
+    away for free. Arms are the exception, and making them the exception is the
+    single biggest jump in what the yard can build: one close-combat arm and one
+    ranged arm is not a variation on the Dreadnought pattern, it IS the pattern,
+    and a mirror can only ever produce a machine holding two of the same thing.
+    So each arm is a chain of its own — its own yoke, its own humerus, its own
+    forearm — and the mirror pass is told to leave both of them alone.
+    They still agree often, because a matched pair is also a real machine; see
+    MATCH below. */
+ {id:"shoulder", on:null,       handed:true},
+ {id:"upper",    on:"shoulder", handed:true},
+ {id:"fore",     on:"upper",    handed:true}
 ];
-const SLOT_IDS=SLOTS.map(s=>s.id);
+/* how often the port arm simply copies the starboard one */
+const MATCH=0.42;
+const HAND=["","L"];
+const SLOT_IDS=[].concat(...SLOTS.map(s=>s.handed?HAND.map(h=>s.id+h):[s.id]));
 
 function buildMech(seed,P,lock){
   const R=mulberry32(seed|0), rr=(a,b)=>a+(b-a)*R(), pick=a=>a[Math.floor(R()*a.length)|0];
@@ -2507,6 +2539,11 @@ function buildMech(seed,P,lock){
   };
 
   const groups={};
+  /* Mirroring a socket frame is just negating every z: the frame goes
+     left-handed, so a variant authored for the starboard side comes out as its
+     own reflection on the port side without knowing anything about it. */
+  const mirFrame=f=>({o:[f.o[0],f.o[1],-f.o[2]],f:[f.f[0],f.f[1],-f.f[2]],
+                      u:[f.u[0],f.u[1],-f.u[2]],s:[f.s[0],f.s[1],-f.s[2]]});
   const inSet=(q,set)=>set.some(c=>inSolid(q,c));
   const touches=(grp,set)=>{
     for(const p of grp)
@@ -2566,18 +2603,31 @@ function buildMech(seed,P,lock){
     return [...m.values()];
   };
 
-  for(const spec of SLOTS){
-    const id=spec.id, sock=chassis.sockets[id];
-    if(!sock)continue;
+  /* Jobs, not slots: the handed ones are built twice, starboard chain first so
+     the port chain can decide whether to copy it. */
+  const jobs=[];
+  for(const spec of SLOTS) if(!spec.handed)
+    jobs.push({id:spec.id,gid:spec.id,on:spec.on,port:false});
+  for(const h of HAND) for(const spec of SLOTS) if(spec.handed)
+    jobs.push({id:spec.id,gid:spec.id+h,on:spec.on?spec.on+h:null,port:h==="L"});
+
+  for(const spec of jobs){
+    const id=spec.id, gid=spec.gid, base=chassis.sockets[id];
+    if(!base)continue;
+    const sock=spec.port?Object.assign({},base,{fr:mirFrame(base.fr)}):base;
     const list=VAR[id];
-    const idx=(lock&&lock[id]!=null)?Math.min(lock[id],list.length-1):Math.floor(R()*list.length);
+    let idx;
+    if(lock&&lock[gid]!=null) idx=Math.min(lock[gid],list.length-1);
+    else if(spec.port&&chosen[id]&&R()<MATCH) idx=chosen[id].i;
+    else idx=Math.floor(R()*list.length);
     const v=list[idx];
-    chosen[id]={i:idx,n:v.n,crew:v.crew||0,cls:v.cls||""};
+    chosen[gid]={i:idx,n:v.n,crew:v.crew||0,cls:v.cls||""};
     const out=[];
     const mr=sock.sr||Math.min(chassis.sr,sock.E.y*0.8,sock.E.z*0.8);
     v.make(builder(sock.fr,out),mr,rr,R,sock.E,probeFor(sock.fr,sock.E),P);
-    for(const p of out){applyOps(p,sock.fr);p.slot=true;p.g=id;p.sd=V.norm(sock.fr.f);
-      if(sock.solo)p.solo=true;}
+    for(const p of out){applyOps(p,sock.fr);p.slot=true;p.g=gid;p.sd=V.norm(sock.fr.f);
+      if(sock.solo)p.solo=true;
+      if(spec.port||SLOTS.some(q=>q.handed&&q.id===id))p.handed=true;}
 
     /* ---- attachment guarantee, per group, against its own parent ----
        A variant that ends up in mid-air is drawn back along its mounting
@@ -2603,7 +2653,7 @@ function buildMech(seed,P,lock){
         if(fixed)break;
         for(const p of out)shift(p,V.mul(stepv,-30));
       }
-      if(!fixed){dropped.add(id);continue;}
+      if(!fixed){dropped.add(gid);continue;}
     }
     /* now the islands. Whatever reaches the anchor is rooted; the rest is
        pulled toward the rooted mass along the line between them, and dropped
@@ -2635,11 +2685,11 @@ function buildMech(seed,P,lock){
         }
       }
     }
-    groups[id]=out;
+    groups[gid]=out;
     parts.push(...out);
     standing.push(...out);
     const f=sock.fr;
-    envs.push({id,c:V.add(f.o,V.mul(f.f,sock.E.x*0.5)),
+    envs.push({id:gid,c:V.add(f.o,V.mul(f.f,sock.E.x*0.5)),
       u:V.mul(f.f,sock.E.x*0.5),v:V.mul(f.u,sock.E.y),w:V.mul(f.s,sock.E.z)});
   }
 
@@ -2676,7 +2726,9 @@ function buildMech(seed,P,lock){
   chosen.sym={i:syI,n:axialOK?SYM[syI].n:"BILATERAL"};
 
   for(const p of parts.slice()) if(!p.solo&&!p.slot&&Math.abs(zOf(p))>1e-4) parts.push(mir(p));
-  const slotParts=parts.filter(p=>p.slot&&!p.solo);
+  /* handed groups were built on both sides already; mirroring them would put
+     four arms on the machine */
+  const slotParts=parts.filter(p=>p.slot&&!p.solo&&!p.handed);
   if(syI===0){
     for(const p of slotParts) if(Math.abs(zOf(p))>1e-4){const q=mir(p);q.g=p.g+"#m";parts.push(q);}
   }else{
@@ -2734,7 +2786,8 @@ function buildMech(seed,P,lock){
      mass band, and whether anything on it is a weapon. That is what picks the
      name pool, so the plate reads back the build. */
   const dc=(chosen.drive&&chosen.drive.cls)||"WALKER";
-  const armed=[chosen.fore,chosen.shoulder,chosen.back,chosen.chest,chosen.head]
+  const armed=[chosen.fore,chosen.foreL,chosen.shoulder,chosen.shoulderL,
+               chosen.back,chosen.chest,chosen.head]
     .filter(Boolean).some(c=>/CANNON|RIFLE|GATLING|MISSILE|LAUNCH|TURRET|BEAM|MELTA|PLASMA|FIST|CYCLONE|TWIN/.test(c.n));
   /* The bands are read off the fleet, not guessed: roughly the top and bottom
      third of what the yard actually turns out. Capping torso width moved every
@@ -2743,7 +2796,8 @@ function buildMech(seed,P,lock){
   const heavy=mass>47, light=mass<36;
   let role;
   if(dc==="SKIMMER")                          role=ROLES[6];
-  else if(!armed&&/DRILL|CLAMP|CLAW|MANIPULATOR/.test(chosen.fore?chosen.fore.n:""))
+  else if(!armed&&/DRILL|CLAMP|CLAW|MANIPULATOR/.test(
+            (chosen.fore?chosen.fore.n:"")+" "+(chosen.foreL?chosen.foreL.n:"")))
                                               role=ROLES[dc==="WALKER"?4:5];
   else if(dc==="TANK")                        role=ROLES[3];
   else if(dc==="ROLLER")                      role=ROLES[heavy?3:7];
@@ -3720,8 +3774,8 @@ function renderSheet(t,W,H,ship,P,pal,opts){
     T(M.desig,bxx+pad,byy+bh*0.28,bh*0.215,bh*0.016,700,lw1);
     T(M.klass,bxx+pad,byy+bh*0.45,bh*0.092,bh*0.011,500,lw1);
     const sp=ship.chosen.recipeShort||ship.chosen.recipe||ship.chosen.topo.n;
-    const cfg=sp+"   "+["head","shoulder","fore","back","waist","drive"]
-      .map((s2,j)=>"HSFBWD"[j]+((ship.chosen[s2]?ship.chosen[s2].i:0)+1)).join(" · ")
+    const cfg=sp+"   "+["head","shoulder","fore","shoulderL","foreL","back","drive"]
+      .map((s2,j)=>"HSFsfBD"[j]+((ship.chosen[s2]?ship.chosen[s2].i:0)+1)).join(" · ")
       +(ship.meta.sym!=="BILATERAL"?"   "+ship.meta.sym:"")
       +(ship.meta.note?"   "+ship.meta.note:"");
     T(cfg,bxx+pad,byy+bh*0.60,bh*0.092,bh*0.011,500,lw1);
@@ -3761,8 +3815,10 @@ const SECN=[{n:"2 SECTIONS"},{n:"3 SECTIONS"},{n:"4 SECTIONS"}];
 /* the rail's label column is one word wide; anything longer collides with the
    value, so these are the one-word names for each parting line */
 const LABEL={neck:"neck",head:"head",chest:"chest",back:"backpack",
-  shoulder:"shoulder",upper:"humerus",fore:"forearm",waist:"skirt",
-  hip:"girdle",drive:"drive",aux:"aux"};
+  shoulder:"yoke R",upper:"arm R",fore:"fore R",
+  shoulderL:"yoke L",upperL:"arm L",foreL:"fore L",
+  waist:"skirt",hip:"girdle",drive:"drive",aux:"aux"};
+const VARKEY=id=>id.replace(/L$/,"");
 const ROWS=[{id:"topo",label:"Chassis",list:TOPO},
   {id:"drive",label:"Drive",list:VAR.drive},
   {id:"sym",label:"Symmetry",list:SYM,adv:true},
@@ -3770,7 +3826,7 @@ const ROWS=[{id:"topo",label:"Chassis",list:TOPO},
   {id:"tlo",label:"Abdomen",list:SECT,adv:true},
   {id:"joint",label:"Coupling",list:JOINT,adv:true},
   {id:"thi",label:"Chest",list:SECT,adv:true}]
-  .concat(SLOT_IDS.filter(id=>id!=="drive").map(id=>({id,label:LABEL[id],list:VAR[id]})));
+  .concat(SLOT_IDS.filter(id=>id!=="drive").map(id=>({id,label:LABEL[id],list:VAR[VARKEY(id)]})));
 /* mulberry32 is seeded by a 32-bit word, so that whole word is the design
    space — 4.29 billion frames. The serial on the plate is a bijection of that
    word (see buildMech), so the number in this box and the name on the drawing
@@ -3899,7 +3955,7 @@ function renderSlots(){
     el2.children[3].addEventListener("click",()=>step(1));
     wrap.appendChild(el2);
   }
-  const slots=SLOT_IDS.reduce((a,id)=>a*VAR[id].length,1);
+  const slots=SLOT_IDS.reduce((a,id)=>a*VAR[VARKEY(id)].length,1);
   let chains=0;
   for(let n=2;n<=4;n++) chains+=Math.pow(SECT.length,n)*Math.pow(JOINT.length,n-1);
   let chassis=0;
