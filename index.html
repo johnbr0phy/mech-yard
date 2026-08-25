@@ -428,7 +428,21 @@ const FORM={
   block(B,c,hx,hy,hz,o){
     o=o||{};
     const R=[hx,hy,hz], dirs=[[1,0,0],[0,1,0],[0,0,1]];
-    let ai=0; for(let i=1;i<3;i++) if(R[i]>R[ai]) ai=i;
+    /* Which way should it be turned? Taking the longest extent as the axis is
+       the obvious answer and it is wrong for anything flat: a plate 10 x 2 x 8
+       turned about its long side has a 4:1 cross-section, and a 4:1 ellipse
+       renders as a squashed lozenge with visible banding — the exact thing that
+       reads as "a big ugly cylinder". Turn the same plate about its THIN axis
+       and the cross-section is 1.25:1 — a short round disc, which is what a
+       plate actually is. So pick whichever axis leaves the roundest section.
+       A post still comes out a post: its thin axes are the pair, so turning
+       about the long one already minimises the ratio. */
+    let ai=0, best=Infinity;
+    for(let i=0;i<3;i++){
+      const o=[0,1,2].filter(j=>j!==i);
+      const q=Math.max(R[o[0]],R[o[1]])/Math.max(Math.min(R[o[0]],R[o[1]]),1e-6);
+      if(q<best){best=q;ai=i;}
+    }
     const rest=[0,1,2].filter(i=>i!==ai);
     const w=V.norm(B.D(dirs[ai][0],dirs[ai][1],dirs[ai][2]));
     const [bu,bv]=basis(w);
@@ -843,13 +857,20 @@ back:[
 {n:"RADIATOR",make(B,mr,rr,R,E,probe,P){
    const d=E.x*rr(0.4,0.6), h=E.y*0.5, w=E.z*0.5;
    FORM.block(B,[d*0.3,0,0],d*0.34,h*0.7,w*0.7,{hideA:true,det:{ribs:2,line:0.75}});
-   const N=GK.n(6);
+   /* This drew the same panel six times on top of itself and rooted none of
+      them — the corners reached past the block they were meant to hang off, so
+      every copy read as floating. The fins are now a real stack: spaced across
+      the width, each one buried in the header at its root. */
+   /* a spanwise header first, then fins threaded onto it — every fin crosses
+      the header, so none of them can be left hanging off the end of the stack */
+   B.lathe([d*0.42,0,-w*0.62],[0,0,1],
+     [[0,h*0.26],[w*0.2,h*0.34],[w*1.04,h*0.34],[w*1.24,h*0.26]],
+     hullDet([0.4,0.8],[],[]),{ell:[1,0.72]});
+   const N=Math.max(3,GK.n(6));
    for(let i=0;i<N;i++){
-     const k=(i/(N-1||1)-0.5);
-     B.panel([[d*0.5,-w*0.9],[d*0.5,w*0.9],[d*1.05,w*0.6],[d*1.05,-w*0.6]],h*0.05,
-             {det:{ribs:2,line:0.85},shiftZ:0});
+     const z=(i/(N-1||1)-0.5)*w*1.05;
+     FORM.block(B,[d*0.60,0,z],d*0.34,h*0.74,w*0.05,{chamfer:0.62,det:{ribs:2,line:0.85}});
    }
-   /* fins are drawn as a stack of thin boxes so they self-occlude cleanly */
    GK.vent(B,[d*0.78,0,0],d*0.3,h*0.85,w*0.85,7,"y");
    GK.hose(B,[d*0.15,h*0.5,-w*0.7],[d*0.7,h*0.7,-w*0.4],h*0.1,5);
  }},
@@ -1176,8 +1197,8 @@ fore:[
    WPN.rotary(B,[l*0.58,r*0.85,0],[0,1,0],l*1.9,r*1.02,6);
    /* the drum and the belt that feeds it, which is most of why the arm reads
       as plumbed into the machine rather than carried by it */
-   B.lathe([l*0.44,r*0.5,-r*1.05],[0,0,1],
-     [[0,r*0.5],[r*0.5,r*0.72],[r*1.6,r*0.72],[r*2.1,r*0.5]],
+   B.lathe([l*0.50,r*0.35,-r*0.86],[0,0,1],
+     [[0,r*0.46],[r*0.4,r*0.66],[r*1.32,r*0.66],[r*1.72,r*0.46]],
      hullDet([0.3,0.6,0.85],[0.4,2.2,3.9],[]));
    WPN.feed(B,[l*0.10,-r*0.5,r*0.3],[l*0.50,r*0.5,r*0.7],r*0.17);
  }},
@@ -2396,9 +2417,12 @@ const TOPO=[
      hipH:rr(3,5),hipW:rr(16,21),driveL:rr(26,36),chestY:rr(10,14),backY:rr(10,15),
      waistY:rr(1,3),prof:HOUR(rr(0.84,0.94),rr(1.04,1.12),rr(0.86,0.94))});
    const m=mechSockets(c,parts,rr,R,P,lock);
-   parts.push(LTH([0,c.TH*0.2,-c.TR*c.wid*1.15],[0,0,1],
-     [[0,c.TR*0.30],[c.TR*c.wid*0.5,c.TR*0.40],[c.TR*c.wid*1.8,c.TR*0.40],[c.TR*c.wid*2.3,c.TR*0.30]],
-     null,{ell:[c.TH*0.20/(c.TR*0.40),c.dep*1.1/0.40]}));
+   /* the mass slung between the hips: turned about its own thin axis so it is
+      a squat drum with a near-round plan, not a 4:1 lozenge on its side */
+   {const rw=c.TR*c.wid*1.15, rd=c.TR*c.dep*1.10, base=Math.max(rw,rd), hh=c.TH*0.22;
+    parts.push(LTH([0,c.TH*0.2-hh,0],[0,1,0],
+      [[0,base*0.80],[hh*0.34,base],[hh*1.66,base],[hh*2,base*0.80]],
+      null,{ell:[rw/base,rd/base]}));}
    return m;
  }},
 {n:"PACK",axial:false,note:"the backpack IS the torso; the front is a thin plate",
@@ -2502,6 +2526,46 @@ function buildMech(seed,P,lock){
   const chassisSolids=parts.slice();
   const dropped=new Set();
 
+  /* ---- connectivity, at the part level ----
+     The guarantee above asks one question per socket: does this variant, taken
+     as a whole, touch the thing it hangs off? That is the right question for a
+     variant that is one object, and the wrong one for a variant that is nine —
+     a launcher can be bolted on by its root while its cells hang in mid-air,
+     and the group-level test passes it, because SOMETHING in the group is
+     attached. About one part in a hundred was floating on that technicality.
+
+     So: split each group into what is actually connected to what, keep every
+     island that reaches the anchor, and drag the ones that do not until they
+     bite. A sphere test first, because this runs on every part of every group
+     and the exact answer is only needed for pairs that could possibly touch. */
+  const sphOf=p=>{
+    const ex=partExtents(p); let c=[0,0,0],n=0,r=0;
+    for(const [q] of ex){c=V.add(c,q);n++;}
+    c=V.mul(c,1/Math.max(n,1));
+    for(const [q,rd] of ex) r=Math.max(r,V.len(V.sub(q,c))+(rd||0));
+    return {c,r:r*1.08};
+  };
+  const near=(a,b)=>V.len(V.sub(a.c,b.c))<=a.r+b.r;
+  const hits=(p,q)=>{
+    for(const [z,rd] of partExtents(p)){
+      if(inSolid(z,q))return true;
+      if(rd>0)for(const ax of [[rd,0,0],[-rd,0,0],[0,rd,0],[0,-rd,0],[0,0,rd],[0,0,-rd]])
+        if(inSolid(V.add(z,ax),q))return true;
+    }
+    return false;
+  };
+  const islands=list=>{
+    const S=list.map(sphOf), par=list.map((_,i)=>i);
+    const find=i=>{while(par[i]!==i){par[i]=par[par[i]];i=par[i];}return i;};
+    for(let i=0;i<list.length;i++)for(let j=i+1;j<list.length;j++){
+      if(find(i)===find(j)||!near(S[i],S[j]))continue;
+      if(hits(list[i],list[j])||hits(list[j],list[i])){const a=find(i),b=find(j);if(a!==b)par[a]=b;}
+    }
+    const m=new Map();
+    for(let i=0;i<list.length;i++){const r=find(i);if(!m.has(r))m.set(r,[]);m.get(r).push(list[i]);}
+    return [...m.values()];
+  };
+
   for(const spec of SLOTS){
     const id=spec.id, sock=chassis.sockets[id];
     if(!sock)continue;
@@ -2540,6 +2604,36 @@ function buildMech(seed,P,lock){
         for(const p of out)shift(p,V.mul(stepv,-30));
       }
       if(!fixed){dropped.add(id);continue;}
+    }
+    /* now the islands. Whatever reaches the anchor is rooted; the rest is
+       pulled toward the rooted mass along the line between them, and dropped
+       only if it never bites — a floating cell block is worse than no cell
+       block, and both are better than one welded to nothing. */
+    if(out.length>2){
+      const isl=islands(out);
+      if(isl.length>1){
+        const rooted=[], loose=[];
+        for(const c of isl)(touches(c,anchor)?rooted:loose).push(c);
+        if(rooted.length){
+          let pool=[].concat(...rooted);
+          for(const c of loose){
+            let cen=[0,0,0];for(const q of c)cen=V.add(cen,partCentroid(q));
+            cen=V.mul(cen,1/c.length);
+            let root=[0,0,0];for(const q of pool)root=V.add(root,partCentroid(q));
+            root=V.mul(root,1/pool.length);
+            let dir=V.sub(root,cen); const dl=V.len(dir);
+            dir=dl>1e-6?V.mul(dir,1/dl):V.mul(V.norm(sock.fr.f),-1);
+            const step=V.mul(dir,Math.max(dl,chassis.sr)/24);
+            let ok=false;
+            for(let k2=1;k2<=26;k2++){
+              for(const q of c)shift(q,step);
+              if(touches(c,pool)||touches(c,anchor)){ok=true;break;}
+            }
+            if(ok)pool=pool.concat(c);
+            else for(let i2=out.length-1;i2>=0;i2--) if(c.indexOf(out[i2])>=0) out.splice(i2,1);
+          }
+        }
+      }
     }
     groups[id]=out;
     parts.push(...out);
@@ -3358,11 +3452,44 @@ function partCentroid(p){
 }
 function partExtents(p){
   const o=[];
-  if(p.k==="box"){for(let i=0;i<8;i++)
-    o.push([V.add(p.c,V.add(V.mul(p.u,i&1?1:-1),V.add(V.mul(p.v,i&2?1:-1),V.mul(p.w,i&4?1:-1)))),0]);}
-  else if(p.k==="panel"){for(const q of p.pts)o.push([q,p.th]);
-    if(p.pts2)for(const q of p.pts2)o.push([q,p.th]);}
-  else if(p.k==="lathe"){for(const [tt,r] of p.prof)o.push([V.add(p.c,V.mul(p.axis,tt)),r]);}
+  if(p.k==="box"){
+    /* Corners are the worst possible probe for "is this touching anything":
+       they are the eight points of a box furthest from its own bulk, and a box
+       seated snugly inside a curved neighbour has all eight of them poking out
+       through the surface. A louvre lying flat on an armour shell reported
+       itself as floating for exactly this reason. Offer the centre and the six
+       face centres as well, so a part is judged on where its mass is and not
+       only on where its extremities are. */
+    o.push([p.c,0]);
+    for(const ax of ["u","v","w"]) for(const sg of [1,-1]) o.push([V.add(p.c,V.mul(p[ax],sg)),0]);
+    for(let i=0;i<8;i++)
+      o.push([V.add(p.c,V.add(V.mul(p.u,i&1?1:-1),V.add(V.mul(p.v,i&2?1:-1),V.mul(p.w,i&4?1:-1)))),0]);}
+  else if(p.k==="panel"){
+    for(const q of p.pts)o.push([q,p.th]);
+    if(p.pts2)for(const q of p.pts2)o.push([q,p.th]);
+    /* and the middle of the plate, for the same reason */
+    let c=[0,0,0];for(const q of p.pts)c=V.add(c,q);
+    o.push([V.mul(c,1/Math.max(p.pts.length,1)),p.th]);}
+  else if(p.k==="lathe"){
+    /* A lathe used to offer only its axis stations, each carrying the profile
+       radius — which is a lie the moment the section is elliptical, because the
+       probe then steps `r` in a direction the solid only reaches `r*0.4` in and
+       lands outside. Worse, everything the attachment guarantee knows about a
+       lathe was those few collinear points, so a plate could be sitting flat on
+       its neighbour and still report itself as floating.
+       Give it real points ON the surface instead: four round each station,
+       squashed by the same ellipse the renderer uses. */
+    const [bu,bv]=basis(p.axis), ea=p.ell?p.ell[0]:1, eb=p.ell?p.ell[1]:1;
+    for(const [tt,r] of p.prof){
+      const c=V.add(p.c,V.mul(p.axis,tt));
+      o.push([c,r*Math.min(ea,eb)]);
+      if(r<=1e-6)continue;
+      for(let j=0;j<4;j++){
+        const a2=j/4*Math.PI*2;
+        o.push([V.add(c,V.add(V.mul(bu,r*ea*Math.cos(a2)),V.mul(bv,r*eb*Math.sin(a2)))),0]);
+      }
+    }
+  }
   else if(p.k==="sphere"||p.k==="disc")o.push([p.c,p.r]);
   else if(p.k==="capsule")o.push([p.a,p.r],[p.b,p.r]);
   else o.push([p.a,p.r1],[p.b,p.r2]);
@@ -3431,8 +3558,14 @@ function renderSheet(t,W,H,ship,P,pal,opts){
      portrait elevations makes the scale collapse — each one gets a third of the
      height it needs and the sheet fills with margin. So when the subject is
      tall, the elevations run ACROSS instead, three columns at one shared scale.
-     Same sheet, same views, transposed to the thing being drawn. */
-  const tall=bProf.h>bProf.w*1.25;
+     Same sheet, same views, transposed to the thing being drawn.
+
+     The threshold is not "taller than wide" but "not much wider than tall",
+     because stacking costs the scale twice over: two full-height views in one
+     column halve it, and a squat machine that is 1:1 in elevation gets the same
+     punishment a standing one does. Only something genuinely long and flat —
+     a hull — has anything to gain from the stack. */
+  const tall=bProf.h*1.45>bProf.w;
   const cells={}, sc={}, origin={};
   const boxes={profile:bProf,plan:bPlan,bow:bBow};
   const bbS=ship.bb;

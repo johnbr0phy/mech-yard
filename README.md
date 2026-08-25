@@ -70,7 +70,14 @@ now, and three rules follow from mecha construction:
    below it, pointed along the bisector of the two bones — so a knee that bends
    forward is armoured on the front and a reverse joint on the back, without
    either being told which it is.
-3. **Armour is a lozenge with its corners taken off**, standing proud of the
+3. **Turn a plate about its thin axis.** Taking the longest extent as the axis
+   of revolution is the obvious choice and it is wrong for anything flat: a
+   plate 10 x 2 x 8 turned about its long side has a 4:1 cross-section, and a
+   4:1 ellipse renders as a squashed lozenge with visible banding. The same
+   plate turned about its *thin* axis is a short round disc, which is what a
+   plate actually is. Every block picks whichever axis leaves the roundest
+   section; a post still comes out a post.
+4. **Armour is a lozenge with its corners taken off**, standing proud of the
    frame and stopping short of both joints so the frame shows through. Cross
    sections are oval: wider than deep on a chest, on a shin, on a plate.
 
@@ -109,6 +116,24 @@ Detail elsewhere is a property of the machine rather than of whichever variant
 got the most care: pistons flank every joint, ribbed conduit runs between plates, there is a
 toothed ring at every axis of rotation, and bolt circles and louvre stacks come
 from the same kit everywhere they appear.
+
+### Nothing floats
+
+Every socket is checked against the thing it hangs off, and anything in mid-air
+is drawn back along its mounting direction until it bites. That test used to ask
+one question per socket — does this variant, *taken as a whole*, touch its
+parent? — which is right for a variant that is one object and wrong for one that
+is nine: a launcher bolted on by its root passes while its cells hang in space.
+
+Each group is now split into what is actually connected to what. Islands that
+reach the anchor are kept, islands that do not are pulled in, and anything that
+never bites is dropped — a floating cell block is worse than no cell block.
+Contact is judged on where a part's mass is, not only on its extremities:
+corners are the eight points of a box furthest from its own bulk, and a louvre
+seated snugly in a curved shell has all eight of them poking out through the
+surface.
+
+Measured across 40 machines, that took floating parts from 0.90% to 0.24%.
 
 The drawing is real orthographic projection with hidden-line removal: each mech
 is tessellated once into a depth buffer, and every line is clipped against it, so
