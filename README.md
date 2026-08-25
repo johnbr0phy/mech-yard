@@ -125,6 +125,17 @@ got the most care: pistons flank every joint, ribbed conduit runs between plates
 toothed ring at every axis of rotation, and bolt circles and louvre stacks come
 from the same kit everywhere they appear.
 
+### Big masses
+
+A large body drawn as one smooth solid reads as a barrel however well it is
+proportioned, because there is nothing on it to give the eye a scale. The torso
+escapes that by being a *stack* — sections, couplings, rings — and the
+chassis-authored masses did not, so a split hull came out as two sausages and a
+dorsal pack as a keg. They get the same treatment now: the length broken into
+segments with a real waist and a bolted ring at every joint, strakes down the
+outside, a plate on each end. None of it is fine detail; it is all silhouette
+and shadow line, which is exactly what a big surface is short of.
+
 ### Rigging
 
 A variant is authored blind. The forearm does not know a backpack exists, the
@@ -147,6 +158,19 @@ surface normals, because a run that dips inward is correctly hidden by the
 hidden-line pass and was never worth drawing.
 
 About a third of the parts on a finished machine are rigging.
+
+**The plate does not move when the drawing does.** A designation is a bijection
+of the seed, so nothing on it may depend on how densely the sheet is dressed —
+and four separate things did. Random values drawn *inside* a detail-sized loop
+shifted the whole stream, so the Greebling slider rolled a different machine out
+of the same seed; the class name was drawn after the rigging pass had consumed
+randomness in proportion to detail; the bounding box grew as fittings were added
+to it; and tonnage read off that box carried the drift into the role band, which
+picks the name pool. Loops now draw a fixed table and emit part of it, the class
+name comes off the seed, the plate quotes the structure rather than the dressing,
+and both tonnage and role band come from chassis bulk — a figure fixed before a
+single part is drawn. Measured across 200 seeds at both ends of the slider:
+zero drift.
 
 ### Nothing floats
 

@@ -561,16 +561,26 @@ const GK={
       const o=[c[0],c[1],c[2]];
       if(along==="y")o[1]+=k*hy*2; else if(along==="z")o[2]+=k*hz*2; else o[0]+=k*hx*2;
       B.box(o,along==="x"?hx/N*0.6:hx,along==="y"?hy/N*0.6:hy,along==="z"?hz/N*0.6:hz,
-            {det:{ribs:2,line:0.7}});
+            {det:{ribs:2,line:0.7},trim:true});
     }
   },
   /* a field of small blocks — the anonymous machinery that fills the gaps
      between armour and frame. Seeded off rr so it is stable per mech. */
   clutter(B,c,hx,hy,hz,rr,n){
-    const N=Math.max(1,GK.n(n||5));
+    /* Draw the whole table first, then emit as much of it as the detail budget
+       asks for. Drawing inside the loop made the NUMBER of random values
+       consumed depend on GK.q — so moving the Greebling slider shifted the
+       random stream and rolled a different machine out of the same seed. A
+       drawing setting may change how densely a machine is dressed; it may not
+       change which machine it is. */
+    const T=[];
+    for(let i=0;i<8;i++) T.push([rr(-hx,hx),rr(-hy,hy),rr(-hz,hz),
+      hx*rr(0.16,0.4),hy*rr(0.16,0.4),hz*rr(0.16,0.4)]);
+    const N=Math.max(1,Math.min(8,GK.n(n||5)));
     for(let i=0;i<N;i++){
-      B.box([c[0]+rr(-hx,hx),c[1]+rr(-hy,hy),c[2]+rr(-hz,hz)],
-            hx*rr(0.16,0.4),hy*rr(0.16,0.4),hz*rr(0.16,0.4),{det:{ribs:2,line:0.8}});
+      const t=T[i];
+      B.box([c[0]+t[0],c[1]+t[1],c[2]+t[2]],t[3],t[4],t[5],
+        {det:{ribs:2,line:0.8},trim:true});
     }
   },
   /* the pair of rams that actually drive a hinge, plus its axle and gear */
@@ -1811,10 +1821,13 @@ const WPN={
   },
   /* missile cells, in a block or in a rack */
   cells(B,c,dir,nx,nz,r,pitch){
+    /* the housing is sized from the NOMINAL grid, the cells from the drawn one:
+       a launcher does not get physically smaller because the sheet is being
+       drawn at lower detail */
     const NX=Math.max(2,GK.n(nx)), NZ=Math.max(2,GK.n(nz));
-    FORM.block(B,c,pitch*NX*0.6,r*1.1,pitch*NZ*0.6,{chamfer:0.68,det:{ribs:3,line:0.72}});
+    FORM.block(B,c,pitch*nx*0.6,r*1.1,pitch*nz*0.6,{chamfer:0.68,det:{ribs:3,line:0.72}});
     for(let i=0;i<NX;i++)for(let j=0;j<NZ;j++){
-      const o=[c[0]+(i/(NX-1||1)-0.5)*pitch*NX*0.9,c[1],c[2]+(j/(NZ-1||1)-0.5)*pitch*NZ*0.9];
+      const o=[c[0]+(i/(NX-1||1)-0.5)*pitch*nx*0.9,c[1],c[2]+(j/(NZ-1||1)-0.5)*pitch*nz*0.9];
       B.lathe([o[0]+dir[0]*r*0.9,o[1]+dir[1]*r*0.9,o[2]+dir[2]*r*0.9],dir,
         [[0,pitch*0.34],[r*0.5,pitch*0.32]],hullDet([0.5],[],[]));
       B.disc([o[0]+dir[0]*r*1.4,o[1]+dir[1]*r*1.4,o[2]+dir[2]*r*1.4],dir,pitch*0.30,pitch*0.16);
@@ -2066,6 +2079,60 @@ const PNL=(pts,pts2,n,th,det,o)=>Object.assign({k:"panel",pts,pts2,n,th,skipSide
 const FR=(o,f,u,s,E,solo,sr)=>({fr:{o,f,u,s},E,solo:!!solo,sr});
 const hullDet=(rings,longs,ports)=>({rings,longs,ports});
 
+/* ===================== big masses =====================
+   A large body drawn as one smooth solid reads as a barrel no matter how well
+   it is proportioned, because there is nothing on it to give the eye a scale.
+   The torso escapes this by being a STACK — sections, couplings, rings — and
+   the chassis-authored masses did not, so a split hull came out as two sausages
+   and a dorsal pack as a keg.
+   Same treatment, in world space: break the length into segments with a real
+   waist and a ring at every joint, run strakes down the outside, cap both ends
+   with a bolted plate. Nothing here is fine detail — it is all silhouette and
+   shadow line, which is what a big surface is short of. */
+function bigMass(out,c,axis,len,r,ell,rr,R,o){
+  o=o||{};
+  const A=V.norm(axis), [bu,bv]=basis(A);
+  const ea=ell?ell[0]:1, eb=ell?ell[1]:1;
+  const at=t=>V.add(c,V.mul(A,t));
+  const N=o.segs||(2+((R()*2)|0));
+  const shape=t=>r*(o.taper?(1-o.taper*t):1)*(1-0.05*Math.cos(t*Math.PI*2*N));
+  for(let i=0;i<N;i++){
+    const t0=len*i/N, t1=len*(i+1)/N;
+    out.push(LTH(at(t0),A,[
+      [0,shape(i/N)*0.93],[ (t1-t0)*0.16,shape((i+0.16)/N)],
+      [(t1-t0)*0.84,shape((i+0.84)/N)],[t1-t0,shape((i+1)/N)*0.93]],
+      {rings:[1,2],mer:8},{ell:[ea,eb]}));
+    if(i){
+      /* the coupling ring: a raised band and the bolts that hold it */
+      out.push(LTH(at(t0-len*0.014),A,[[0,shape(i/N)*0.99],[len*0.028,shape(i/N)*0.99]],
+        {rings:[],mer:10},{ell:[ea,eb]}));
+      const NB=8;
+      for(let j=0;j<NB;j++){const a2=j/NB*Math.PI*2+0.2;
+        out.push(SPH(V.add(at(t0),V.add(V.mul(bu,Math.cos(a2)*shape(i/N)*ea*1.0),
+          V.mul(bv,Math.sin(a2)*shape(i/N)*eb*1.0))),r*0.055));}
+    }
+  }
+  /* strakes: raised ribs down the length, which is the cheapest thing that
+     breaks a cylinder's silhouette from any angle */
+  const NS=o.strakes==null?3:o.strakes;
+  for(let j=0;j<NS;j++){
+    const a2=j/NS*Math.PI*2+(o.strakeOff||0.5);
+    const rad=k=>V.add(V.mul(bu,Math.cos(a2)*shape(k)*ea*0.99),
+                       V.mul(bv,Math.sin(a2)*shape(k)*eb*0.99));
+    out.push(LTH(V.add(at(len*0.08),rad(0.08)),A,
+      [[0,r*0.10],[len*0.10,r*0.14],[len*0.74,r*0.14],[len*0.84,r*0.09]],
+      {rings:[1,2],mer:5}));
+  }
+  /* end plates */
+  for(const [t,n] of [[0,V.mul(A,-1)],[len,A]]){
+    out.push(DSC(at(t),n,r*Math.max(ea,eb)*0.86,r*0.42));
+    const NB=10;
+    for(let j=0;j<NB;j++){const a2=j/NB*Math.PI*2;
+      out.push(SPH(V.add(at(t),V.add(V.mul(bu,Math.cos(a2)*shape(t/len)*ea*0.74),
+        V.mul(bv,Math.sin(a2)*shape(t/len)*eb*0.74))),r*0.05));}
+  }
+}
+
 /* ===================== torso column =====================
    A torso is not one body. It is a stack of sections laid along the mech's own
    vertical, joined by real couplings — which is the ship's spine stood on end,
@@ -2309,7 +2376,12 @@ function mechSockets(c,parts,rr,R,P,lock){
   S.hip=FR([0,-hipH*0.2,0],down,fore,star,{x:hipH,y:TR*dep*1.1,z:hipW},false,TR*0.78);
   S.drive=FR([0,-hipH,0],down,fore,star,{x:driveL,y:TR*dep*2.0,z:hipW*1.05},true,TR*0.8);
   S.aux=FR([leanX*auxY,auxY,auxZ],star,up,fore,{x:TR*0.7,y:TR*0.7,z:TR*0.7});
-  return {sockets:S,sr:TR,torso};
+  /* A bulk figure taken straight off the chassis numbers. Every one of them is
+     rolled from the seed before a single part is drawn, so this cannot move
+     when the drawing does — which is what a role band needs, since the band
+     picks the name pool and the name is a bijection of the seed. */
+  return {sockets:S,sr:TR,torso,
+          bulk:TR*TR*wid*dep*(TH+driveL*0.55)*U2M3};
 }
 /* The torso profile, and the single biggest reason the machines read as boxes
    or don't. A monotonic taper — which is all the hull ever needed — gives a
@@ -2323,6 +2395,7 @@ const HOUR=(waist,chest,collar)=>t=>{
   return waist+(chest-waist)*(u*u*(3-2*u));
 };
 const P0=HOUR(0.72,1.04,0.88);              /* the default torso is an hourglass */
+const U2M3=0.155*0.155*0.155;               /* build units cubed, in cubic metres */
 const base=o=>Object.assign({
   TH:34,TR:11,dep:0.86,wid:1.14,shY:29,shZ:15,neckH:5,armR:3.6,armL:15,foreL:15,
   hipH:7,hipW:11,driveL:44,chestY:22,backY:24,waistY:3,prof:P0,auxY:26,auxZ:12,leanX:0
@@ -2391,9 +2464,10 @@ const TOPO=[
    /* the second mass is placed off the centreline; the mirror pass makes it a
       pair, and everything bolted to it comes along for free */
    const off=c.TR*1.15;
-   parts.push(CAP([0,c.TH*0.28,off],[0,c.TH*0.88,off],c.TR*0.62,
-     {det:hullDet([0.3,0.6,0.85],[0.5,3.6],[])}));
+   bigMass(parts,[0,c.TH*0.22,off],[0,1,0],c.TH*0.70,c.TR*0.62,[1,0.88],rr,R,
+     {segs:3,strakes:3,taper:0.14,strakeOff:0.9});
    parts.push(TUB([0,c.TH*0.6,c.TR*0.4],[0,c.TH*0.6,off],c.TR*0.2,c.TR*0.18));
+   parts.push(TUB([0,c.TH*0.34,c.TR*0.4],[0,c.TH*0.34,off],c.TR*0.16,c.TR*0.14));
    return m;
  }},
 {n:"CANOPY",axial:false,note:"glazed nose, arms carried low — a cab, not a chest",
@@ -2450,9 +2524,8 @@ const TOPO=[
      shY:rr(23,29),shZ:rr(14,18),armL:rr(12,16),foreL:rr(12,16),
      driveL:rr(34,44),backY:rr(16,22),leanX:rr(-0.1,-0.03),prof:HOUR(rr(0.62,0.72),rr(0.96,1.04),rr(0.80,0.88))});
    const m=mechSockets(c,parts,rr,R,P,lock);
-   parts.push(LTH([-c.TR*1.5,c.TH*0.13,0],[0,1,0],
-     [[0,c.TR*0.62],[c.TH*0.14,c.TR*0.80],[c.TH*0.70,c.TR*0.80],[c.TH*0.84,c.TR*0.58]],
-     null,{ell:[c.wid*1.38,1.12]}));
+   bigMass(parts,[-c.TR*1.5,c.TH*0.11,0],[0,1,0],c.TH*0.76,c.TR*0.76,[c.wid*1.30,1.06],rr,R,
+     {segs:3,strakes:4,taper:0.16,strakeOff:0.4});
    m.sockets.back=FR([-c.TR*2.4,c.TH*0.55,0],[-1,0,0],[0,1,0],[0,0,1],
      {x:c.TR*1.9,y:c.TH*0.5,z:c.TR*c.wid*1.6});
    m.sockets.aux=FR([-c.TR*1.5,c.TH*0.86,c.TR*c.wid*1.1],[0,0,1],[0,1,0],[1,0,0],
@@ -2538,7 +2611,10 @@ function rigMech(parts,R,rr,P,sr){
        measure: a torso is three enormous parts and a greeble field is forty
        tiny ones, so the big surfaces — the ones with room for fittings — ended
        up bare while the clutter got wired to death. Anchors scale with size. */
-    const want=S[i].r>sr*0.62?4:S[i].r>sr*0.28?2:1;
+    /* anchors in proportion to the surface, without a ceiling that a genuinely
+       huge mass immediately hits — a dorsal pack three torso-radii across needs
+       more than the four a shoulder pod gets */
+    const want=Math.max(1,Math.min(9,Math.round(1+4.2*(S[i].r/sr))));
     let took=0;
     /* and stride through the extents rather than taking the first few — a
        lathe lists its points station by station, so the first four are all on
@@ -2583,9 +2659,12 @@ function rigMech(parts,R,rr,P,sr){
   };
 
   const nRun=Math.round(7+17*q);
-  const runs=RUNS.filter(([a,b])=>bank[a]&&bank[b]);
+  /* a machine can legitimately publish none of the paired groups a route wants
+     — a solo drive on a bare chassis, everything else dropped — and an empty
+     route list must not be drawn from */
+  const runs=RUNS.filter(([a,b])=>bank[a]&&bank[a].length&&bank[b]&&bank[b].length);
   let made=0;
-  for(let guard=0;guard<nRun*6&&made<nRun;guard++){
+  for(let guard=0;runs.length&&guard<nRun*6&&made<nRun;guard++){
     const [ga,gb,w]=pick(runs);
     if(R()>Math.min(1,w*0.5))continue;
     const A=pick(bank[ga]), B=pick(bank[gb]);
@@ -2954,7 +3033,14 @@ function buildMech(seed,P,lock){
   }
 
   /* The layout is final here — placed, attached, mirrored — which is the first
-     moment anything can see the whole machine. Rig it. */
+     moment anything can see the whole machine. Rig it.
+     Note what is measured before that happens: the plate quotes the STRUCTURE.
+     Fittings stick out, so a bounding box taken after them grows with the
+     Greebling slider, and everything read off that box — height, tonnage, the
+     mass band, the name pool the band chooses — moved with a drawing setting.
+     A designation is a bijection of the seed and must not know how densely the
+     drawing was dressed. */
+  const coreCount=parts.length;
   parts.push(...rigMech(parts,R,rr,P,chassis.sr));
 
   /* registry, derived from what actually got built */
@@ -2986,6 +3072,11 @@ function buildMech(seed,P,lock){
   const bb=[[1e9,1e9,1e9],[-1e9,-1e9,-1e9]];
   for(const [q,r] of pts)for(let i=0;i<3;i++){
     bb[0][i]=Math.min(bb[0][i],q[i]-r);bb[1][i]=Math.max(bb[1][i],q[i]+r);}
+  /* the structural box: the same measurement, taken over the machine only */
+  const cb=[[1e9,1e9,1e9],[-1e9,-1e9,-1e9]];
+  for(let i=0;i<coreCount;i++) if(!parts[i].trim) for(const [q,r] of partExtents(parts[i]))
+    for(let k2=0;k2<3;k2++){
+      cb[0][k2]=Math.min(cb[0][k2],q[k2]-(r||0));cb[1][k2]=Math.max(cb[1][k2],q[k2]+(r||0));}
 
   /* Build units are not metres. The ship inherited a hull-sized unit and read
      it straight off; a mech is an order of magnitude smaller, so the drawing
@@ -2993,10 +3084,24 @@ function buildMech(seed,P,lock){
      One build unit is 15.5 cm, which puts a standing humanoid at 16–19 m and
      a light scout under 12 — and the same factor cubed turns swept volume into
      a displacement that reads like armour over voids rather than solid steel. */
-  const U2M=0.155, RHO=0.22;
-  const height=(bb[1][1]-bb[0][1])*U2M, width=(bb[1][2]-bb[0][2])*U2M,
-        depth=(bb[1][0]-bb[0][0])*U2M;
-  const mass=vol*U2M*U2M*U2M*RHO;
+  const U2M=0.155;
+  const height=(cb[1][1]-cb[0][1])*U2M, width=(cb[1][2]-cb[0][2])*U2M,
+        depth=(cb[1][0]-cb[0][0])*U2M;
+  /* Mass comes off the envelope, not off the sum of the parts. Swept volume is
+     the better model of a mass and the wrong basis for THIS number, because it
+     counts fittings: turning the Greebling slider added tonnes, the tonnage
+     moved the machine across a role band, the band picked a different name
+     pool — and the plate renamed itself because someone changed a drawing
+     setting. A designation is a bijection of the seed and has no business
+     depending on how densely the drawing is dressed.
+     0.055 t/m³ is armour over voids, and it reproduces what the swept sum was
+     giving at mid detail. */
+  /* Tonnage from the same stable figure the band uses. Quoting it off the
+     measured box left it wandering by a tonne or two as fittings were added,
+     and a DRY weight that moves when a drawing slider moves is nonsense on a
+     plate. 2.35 t per cubic metre of chassis bulk reproduces what the measured
+     box was giving at mid detail. */
+  const mass=chassis.bulk*2.35;
 
   /* ---- what did this turn out to be? ----
      The role is read off the finished machine, not rolled: a drive class, a
@@ -3010,7 +3115,9 @@ function buildMech(seed,P,lock){
      third of what the yard actually turns out. Capping torso width moved every
      mass down, and a band left where it was would have called nine machines in
      ten a scout. */
-  const heavy=mass>47, light=mass<36;
+  /* the bands are the top and bottom third of what the yard actually turns
+     out, read off 500 rolls rather than guessed */
+  const heavy=chassis.bulk>27.3, light=chassis.bulk<22.2;
   let role;
   if(dc==="SKIMMER")                          role=ROLES[6];
   else if(!armed&&/DRILL|CLAMP|CLAW|MANIPULATOR/.test(
@@ -3035,14 +3142,18 @@ function buildMech(seed,P,lock){
   const b1=u%AZ;           u=(u-b1)/AZ;
   const b2=u%AZ;           u=(u-b2)/AZ;
   const block=String.fromCharCode(65+b1,65+b2), serial=u;
-  const klass=POOL[role.pool][Math.floor(R()*K)];
+  /* drawn from the seed, not from the stream: the rigging pass runs before this
+     and consumes randomness in proportion to the detail setting, so a rolled
+     class name changed every time the Greebling slider moved. A name on a plate
+     is part of the designation and belongs to the seed. */
+  const klass=POOL[role.pool][((seed>>>13)^(seed>>>3))%K];
 
   return {parts,envs,chosen,bb,meta:{
     desig:`${role.pre}-${block}${String(serial).padStart(5,"0")} ${name}`,
     klass:`${klass}-CLASS ${role.kl}`,
     length:height, beam:width, height:depth,
     mass, crew:(chosen.head?chosen.head.crew:0)+(chosen.chest?chosen.chest.crew:0),
-    note:topo.note||"", sym:chosen.sym.n, seed,
+    note:topo.note||"", sym:chosen.sym.n, seed, bulk:chassis.bulk,
     drive:chosen.drive?chosen.drive.n:"—", role:role.k}};
 }
 
