@@ -1,0 +1,7 @@
+# Third-party reference art, kept locally for design reference only.
+# This repo is public — nothing in here is ours to redistribute.
+references/
+
+# Local tuning data and rendered contact sheets
+tune/
+*.local.json
