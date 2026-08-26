@@ -239,8 +239,11 @@ canvas{display:block;width:100%;height:100%}
   .menu i::after{top:6px}
   .menu[aria-expanded="true"]{background:var(--plate);border-color:var(--plate);
     color:var(--plate-ink)}
+  /* the drawer is its own box — reset the negative margins the desktop panel
+     uses to run its scrollbar out to the rail edge, or the content sits 20px
+     left of the drawer and 40px wider than it, spilling out the side */
   .panel{position:fixed;top:0;left:0;bottom:0;width:min(86vw,340px);z-index:30;
-    background:var(--panel);border-right:1px solid var(--rule);
+    background:var(--panel);border-right:1px solid var(--rule);margin:0;
     padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));
     overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
     transform:translateX(-101%);transition:transform .22s ease}
@@ -319,7 +322,7 @@ canvas{display:block;width:100%;height:100%}
 
     <div class="social">
       <a class="sib" href="https://johnbr0phy.github.io/orbital-yard/"
-         target="_blank" rel="noopener">Orbital Yard &mdash; ships &#8599;</a>
+         target="_blank" rel="noopener">Visit the Ship Yard &#8599;</a>
       <a href="https://github.com/johnbr0phy/mech-yard"
          target="_blank" rel="noopener">Star on GitHub</a>
       <a href="https://x.com/JohnBr0" target="_blank" rel="noopener">Follow @JohnBr0</a>
