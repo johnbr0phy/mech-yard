@@ -97,16 +97,19 @@ known how to draw a body of revolution — silhouette by convex hull, real
 stations, proper meridians, elliptical cross-sections — but only the chassis
 could make one, so every arm and every armour plate in the library was stuck
 being a box or a constant-radius cylinder. The variant builder can make them
-now, and three rules follow from mecha construction:
+now, and the rules follow from mecha construction:
 
 1. **The torso is an hourglass, not a taper.** Narrow at the belt, thrown wide
    at the yokes, drawn back in at the collar — the chest trapezoid, as a solid.
    Each chassis just says how hard to pinch.
 2. **Bones swell through the belly and thin at both joints.** A constant radius
-   reads as plumbing. Every joint then gets a flared cap that overhangs the bone
-   below it, pointed along the bisector of the two bones — so a knee that bends
-   forward is armoured on the front and a reverse joint on the back, without
-   either being told which it is.
+   reads as plumbing. On an unplated limb every joint then gets a flared cap
+   that overhangs the bone below it, pointed along the bisector of the two
+   bones — so a knee that bends forward is armoured on the front and a reverse
+   joint on the back, without either being told which it is. A plated limb
+   armours its joints by overlap instead — the thigh's skirt hangs over the
+   shin greave's rim — because a flared cap on top of that pair is seen end-on
+   from the front, where it reads as a balloon stitched to the knee.
 3. **Turn a plate about its thin axis.** Taking the longest extent as the axis
    of revolution is the obvious choice and it is wrong for anything flat: a
    plate 10 x 2 x 8 turned about its long side has a 4:1 cross-section, and a
@@ -117,6 +120,46 @@ now, and three rules follow from mecha construction:
 4. **Armour is a lozenge with its corners taken off**, standing proud of the
    frame and stopping short of both joints so the frame shows through. Cross
    sections are oval: wider than deep on a chest, on a shin, on a plate.
+5. **Limb armour is layers, not inflation.** A single slab standing proud of
+   the bone is one depth, and one depth is just a thicker pipe. Every plated
+   segment now carries a *greave* — a shell that wraps the bone, nearly
+   cylindrical through its length, flaring at the bottom into a skirt that
+   overhangs the joint below — and a face plate riding proud of the shell on
+   the leading face. Three depths per segment is what the eye reads as plate
+   over structure. Everything flat is turned about the machine's *side* axis,
+   so plates and toes are edge-on from the front; a face plate that is a body
+   of revolution about the fore axis is a dartboard bolted to the shin.
+
+### Standing weight
+
+The machines used to be built like people — legs longer than the torso, feet
+smaller than the shins they carried, a broad body balanced on a pelvis half
+its width — and a person's proportions are exactly what a twelve-hundred-tonne
+machine must not have. The weight pass is four numbers and a foot:
+
+- **Legs are shorter than the body.** Every chassis' drive allowance now sits
+  below its torso height, which drops the mass without touching a part.
+- **The girdle is half again the torso radius**, so the feet land under the
+  shoulders rather than under the sternum, and the silhouette guard now trips
+  at 1.75:1 instead of 2:1 — the tall end of every roll puts more of itself
+  into the beam.
+- **The taper is a machine's, not a mammal's.** A biped's bone gauge used to
+  run 1.05 down to 0.6 hip-to-ankle; it runs 1.06 to 0.78 now, because a leg
+  that carries armour keeps its section almost all the way down.
+- **The forearm mounts heavier than the humerus.** An arm that is a weapon
+  housing grows toward its business end; an arm that tapers to the wrist is a
+  person's arm, which is the biggest single tell separating a suit of armour
+  from a walking gun carriage.
+- **The foot is a sabaton** — ankle collar, a sole plate wider than the shin,
+  a rolled toe band across the front and a heel plate aft — because the sole
+  is where the machine makes its whole argument for standing up.
+
+Tracked machines got the same treatment from the other direction: the running
+gear used to take a third of the drive's height and looked like roller skates
+under a building. The track band now stands the full lower two thirds of the
+drive — which is the near-half-of-total-height it stands on any tank worth
+drawing — with a real drive sprocket, overlapping road wheels, grousered
+shoes, and a fender over the top run.
 
 ### Weapons
 
