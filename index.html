@@ -518,8 +518,42 @@ const FORM={
     const L2=r*(o.len==null?1.5:o.len);
     const d=[dir[0]*L2,dir[1]*L2,dir[2]*L2];
     B.lathe([at[0]-d[0]*0.42,at[1]-d[1]*0.42,at[2]-d[2]*0.42],d,
-      [[0,r*0.72],[L2*0.30,r*1.22],[L2*0.72,r*1.16],[L2,r*0.5]],
+      [[0,r*0.72],[L2*0.30,r*1.24],[L2*0.72,r*1.17],[L2,r*0.5]],
       {det:hullDet([0.35,0.7],[0.4,2.4,4.1],[])});
+  },
+  /* What makes a limb read as ARMOURED rather than inflated. A single slab
+     standing proud of the bone is one depth, and one depth is a thicker pipe;
+     real limb armour is LAYERS — a shell that wraps the segment, a skirt where
+     the shell flares out over the joint below it, and a face plate riding
+     proud of the shell on the leading face. Three depths on one segment is
+     what the eye reads as plate over structure, and it costs two parts.
+     `a`→`b` is the bone, in the socket frame, so local +y is the machine's
+     fore and that is where the face plate stands. */
+  greave(B,a,b,r,o){
+    o=o||{};
+    const d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]];
+    const len=Math.hypot(d[0],d[1],d[2])||1;
+    const t0=o.t0==null?0.14:o.t0, t1=o.t1==null?0.88:o.t1, sl=len*(t1-t0);
+    const at=k=>[a[0]+d[0]*k,a[1]+d[1]*k,a[2]+d[2]*k];
+    const pr=r*(o.proud==null?1.18:o.proud);
+    const sk=o.skirt==null?1.08:o.skirt;
+    /* wider than it is deep, like every plate in the yard — and nearly
+       cylindrical through its length: the rim, waist and skirt are shadow
+       lines a few percent deep, not a vase profile. A greave that swells is
+       just a fatter thigh, which is the inflation this kit exists to avoid. */
+    const eo=FORM.ell(B,d,pr*0.84,pr);
+    B.lathe(at(t0),d,[
+      [0,pr*0.88],[sl*0.10,pr],[sl*0.55,pr*0.95],[sl*0.86,pr*sk],[sl,pr*sk*0.80]],
+      Object.assign({ell:eo.ell,
+        det:o.det||hullDet([0.28,0.56,0.84],[0.5,2.6,4.2],[])},o.opt||{}));
+    if(o.face!==false){
+      /* turned about the SIDE axis, so the plate is edge-on from the front —
+         a face plate that is itself a body of revolution about the fore axis
+         reads as a dartboard bolted to the shin */
+      const m=at(t0+(t1-t0)*0.42);
+      FORM.slab(B,[m[0],m[1]+pr*0.80,m[2]],[0,0,1],r*0.58,r*0.24,sl*0.42,
+        {chamfer:0.7,det:{ribs:3,line:0.75}});
+    }
   }
 };
 
@@ -1093,7 +1127,7 @@ shoulder:[
    assembled rather than extruded. ---- */
 upper:[
 {n:"RAMMED",make(B,mr,rr,R,E,probe,P){
-   const l=E.x, r=mr*rr(0.82,1.0);
+   const l=E.x, r=mr*rr(0.92,1.08);
    B.tube([-mr*0.5,0,0],[l*0.14,0,0],mr*1.0,r*0.86,{hideA:true,det:hullDet([0.5],[],[])});
    FORM.bone(B,[l*0.10,0,0],[l*0.94,0,0],r,{swell:0.20,mid:0.44,r0:0.86,r1:0.70});
    for(const s of [-1,1]) GK.piston(B,[l*0.16,s*r*0.72,0],[l*0.86,s*r*0.46,0],r*0.19);
@@ -1102,17 +1136,18 @@ upper:[
    GK.hinge(B,[l,0,0],"z",r*0.74,rr);
  }},
 {n:"SLEEVED",make(B,mr,rr,R,E,probe,P){
-   const l=E.x, r=mr*rr(0.88,1.06);
+   const l=E.x, r=mr*rr(0.96,1.14);
    B.tube([-mr*0.5,0,0],[l*0.12,0,0],mr*1.0,r*0.9,{hideA:true});
    FORM.bone(B,[l*0.06,0,0],[l*0.96,0,0],r*0.82,{swell:0.12,mid:0.4});
-   FORM.slab(B,[l*0.50,0,0],[1,0,0],l*0.40,r*1.06,r*0.82,{det:{ribs:4,line:0.72}});
-   FORM.slab(B,[l*0.24,r*0.40,0],[1,0,0],l*0.14,r*0.36,r*0.60,{chamfer:0.6});
-   GK.vent(B,[l*0.58,-r*0.94,0],l*0.28,r*0.09,r*0.56,5,"x");
+   /* the sleeve is a greave now, not a slab — same layers as a shin, because
+      an armoured humerus and an armoured tibia are the same job */
+   FORM.greave(B,[l*0.06,0,0],[l*0.96,0,0],r*0.88,{proud:1.22,skirt:1.10,t0:0.18,t1:0.86});
+   GK.vent(B,[l*0.58,-r*1.02,0],l*0.28,r*0.09,r*0.56,5,"x");
    FORM.cap(B,[l,0,0],[1,0,0],r*0.76,{len:1.4});
    GK.hinge(B,[l,0,0],"z",r*0.70,rr);
  }},
 {n:"SKELETAL",make(B,mr,rr,R,E,probe,P){
-   const l=E.x, r=mr*rr(0.74,0.92);
+   const l=E.x, r=mr*rr(0.80,0.98);
    B.tube([-mr*0.5,0,0],[l*0.14,0,0],mr*1.0,r*0.6,{hideA:true});
    /* the frame with nothing over it — four longerons that bow outward at the
       belly, exactly where the shelled arms carry their swell */
@@ -1126,11 +1161,12 @@ upper:[
    GK.hinge(B,[l,0,0],"z",r*0.72,rr);
  }},
 {n:"BOXED",make(B,mr,rr,R,E,probe,P){
-   const l=E.x, r=mr*rr(0.92,1.12);
+   const l=E.x, r=mr*rr(1.0,1.18);
    FORM.bone(B,[-mr*0.4,0,0],[l*0.96,0,0],r*0.84,{swell:0.10,opt:{hideA:true}});
-   FORM.slab(B,[l*0.48,0,0],[1,0,0],l*0.46,r*1.04,r*0.90,
+   FORM.slab(B,[l*0.48,0,0],[1,0,0],l*0.46,r*1.10,r*0.94,
      {chamfer:0.68,det:{ribs:5,line:0.72}});
-   FORM.slab(B,[l*0.50,r*1.04,0],[1,0,0],l*0.30,r*0.14,r*0.58,{chamfer:0.6});
+   FORM.slab(B,[l*0.50,r*1.10,0],[1,0,0],l*0.30,r*0.16,r*0.58,{chamfer:0.6});
+   FORM.block(B,[l*0.44,r*0.02,r*1.02],l*0.20,r*0.44,r*0.16,{chamfer:0.7,det:{ribs:3,line:0.78}});
    GK.bolts(B,[l*0.18,0,0],"x",r*0.84,8);
    GK.piston(B,[l*0.20,-r*0.92,r*0.52],[l*0.86,-r*0.58,r*0.36],r*0.17);
    FORM.cap(B,[l,0,0],[1,0,0],r*0.80,{len:1.3});
@@ -1501,17 +1537,20 @@ aux:[
    what stops the library reading as nine unrelated drawings. ---- */
 drive:[
 {n:"BIPED",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.85,1.05),w,0.62);
+   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.95,1.15),w,0.66);
    /* hip, knee, ankle, sole: three bones and a short ankle block, which is
       what a plantigrade leg is. The stance is set from the girdle, not from
-      the socket radius — see LEG.gauge. */
+      the socket radius — see LEG.gauge.
+      The taper used to run 1.05 down to 0.6, which is a mammal's leg; a
+      machine that carries armour on its shins keeps its section almost all
+      the way down and puts the mass where the ground reaction is. */
    for(const s of [-1,1]) LEG.chain(B,[
-     [0,0,s*w*0.98],[L*0.42,L*0.10,s*w*1.02],[L*0.80,-L*0.04,s*w*0.94],[L*0.93,0,s*w*0.90]
-   ],[r*1.05,r*0.92,r*0.72,r*0.6],rr,{plate:true});
-   for(const s of [-1,1]) LEG.foot(B,[L*0.93,0,s*w*0.90],L*0.14,r,rr,"plate");
+     [0,0,s*w*0.98],[L*0.42,L*0.10,s*w*1.02],[L*0.80,-L*0.04,s*w*0.94],[L*0.91,0,s*w*0.90]
+   ],[r*1.06,r*1.00,r*0.88,r*0.78],rr,{plate:true});
+   for(const s of [-1,1]) LEG.foot(B,[L*0.91,0,s*w*0.90],L*0.16,r,rr,"plate");
  }},
 {n:"REVERSE-JOINT",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.8,1.0),w,0.58);
+   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.9,1.1),w,0.62);
    /* A digitigrade leg is THREE bones, not four: femur, tibia, and one long
       metatarsal standing the machine on its toes. The fourth was the mistake —
       a stub between the hock and the foot that read as an extra joint and put
@@ -1523,19 +1562,19 @@ drive:[
       walker look like a pair of trousers. */
    for(const s of [-1,1]) LEG.chain(B,[
      [0,0,s*w*0.96],[L*0.28,L*0.10,s*w*1.0],[L*0.62,-L*0.26,s*w*0.94],[L*0.95,L*0.12,s*w*0.88]
-   ],[r*1.05,r*0.88,r*0.56,r*0.34],rr,{plate:true});
-   for(const s of [-1,1]) LEG.foot(B,[L*0.95,L*0.12,s*w*0.88],L*0.15,r*0.52,rr,"talon");
+   ],[r*1.06,r*0.94,r*0.68,r*0.46],rr,{plate:true});
+   for(const s of [-1,1]) LEG.foot(B,[L*0.95,L*0.12,s*w*0.88],L*0.15,r*0.60,rr,"talon");
  }},
 {n:"QUADRUPED",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.6,0.78),w,0.46);
+   const L=E.x, w=E.z*0.5, r=LEG.gauge(mr*rr(0.68,0.86),w,0.52);
    FORM.block(B,[L*0.1,0,0],L*0.12,E.y*0.45,w*0.9,{hideA:true,det:{ribs:3,line:0.75}});
    for(const s of [-1,1]) for(const f of [-1,1]){
      const y0=f*E.y*0.42;
      LEG.chain(B,[
        [L*0.08,y0,s*w*0.85],[L*0.42,y0+f*L*0.2,s*w*1.15],
        [L*0.82,y0+f*L*0.06,s*w*1.05],[L*0.94,y0+f*L*0.02,s*w*1.0]
-     ],[r*1.0,r*0.85,r*0.66,r*0.54],rr,{});
-     LEG.foot(B,[L*0.94,y0+f*L*0.02,s*w*1.0],L*0.1,r*0.85,rr,"pad");
+     ],[r*1.02,r*0.92,r*0.78,r*0.66],rr,{plate:true});
+     LEG.foot(B,[L*0.94,y0+f*L*0.02,s*w*1.0],L*0.11,r*0.9,rr,"pad");
    }
  }},
 {n:"SPIDER",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
@@ -1574,7 +1613,7 @@ drive:[
    }
  }},
 {n:"TRIPOD",cls:"WALKER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x, r=LEG.gauge(mr*rr(0.72,0.92),E.z*0.5,0.54);
+   const L=E.x, r=LEG.gauge(mr*rr(0.82,1.0),E.z*0.5,0.60);
    B.tube([-mr*0.3,0,0],[L*0.14,0,0],mr*1.05,mr*1.0,{hideA:true});
    GK.gear(B,[L*0.16,0,0],"x",mr*0.95,16);
    for(let i=0;i<3;i++){
@@ -1585,44 +1624,52 @@ drive:[
        [L*0.46,cy*L*0.34,cz*L*0.34],
        [L*0.86,cy*L*0.46,cz*L*0.46],
        [L*0.95,cy*L*0.46,cz*L*0.46]
-     ],[r*1.05,r*0.88,r*0.66,r*0.54],rr,{plate:true});
-     LEG.foot(B,[L*0.95,cy*L*0.46,cz*L*0.46],L*0.12,r*0.9,rr,"pad");
+     ],[r*1.05,r*0.94,r*0.78,r*0.66],rr,{plate:true});
+     LEG.foot(B,[L*0.95,cy*L*0.46,cz*L*0.46],L*0.13,r*0.95,rr,"pad");
    }
  }},
 {n:"TRACKED",cls:"TANK",make(B,mr,rr,R,E,probe,P){
    /* the drive envelope is sized for a leg; running gear that filled it would
       put the hull three storeys up. A tracked machine gets half the height and
-      spends the rest on wheelbase, which is what makes it read as squat. */
-   const L=E.x*0.46, w=E.z*0.5, len=L*rr(0.95,1.25), r=L*0.42;
-   FORM.block(B,[L*0.2,0,0],L*0.22,len*0.4,w*0.9,{hideA:true,det:{ribs:4,line:0.7}});
+      spends the rest on wheelbase, which is what makes it read as squat.
+      But squat is not the same as small: on any tank worth drawing the running
+      gear stands close to half the vehicle's height, and the old bogies took a
+      third of the drive and looked like roller skates under a building. The
+      track band now takes the full lower two thirds of the drive, the sprocket
+      is a real drive wheel, the road wheels overlap the way a torsion-bar set
+      does, and the hull sits down IN the gear rather than on top of it. */
+   const L=E.x*0.56, w=E.z*0.5, len=L*rr(1.0,1.3), r=L*0.62;
+   FORM.block(B,[L*0.24,0,0],L*0.28,len*0.55,w*0.82,{hideA:true,det:{ribs:4,line:0.7}});
    for(const s of [-1,1]){
      const z=s*w*1.05;
      /* sprocket aft, idler fore, road wheels between, and a real grouser run
         wrapped round the lot so the track reads as a track from any angle */
-     LEG.wheel(B,[L*0.6,len*0.8,z],r*0.85,w*0.34,rr,"sprocket");
-     LEG.wheel(B,[L*0.6,-len*0.8,z],r*0.75,w*0.34,rr,"idler");
-     const nw=Math.max(3,GK.n(5));
+     LEG.wheel(B,[L*0.62,len*0.85,z],r*0.52,w*0.44,rr,"sprocket");
+     LEG.wheel(B,[L*0.62,-len*0.85,z],r*0.46,w*0.44,rr,"idler");
+     const nw=Math.max(4,GK.n(6));
      for(let i=0;i<nw;i++)
-       LEG.wheel(B,[L*0.72,(-0.55+1.1*i/(nw-1))*len,z],r*0.5,w*0.3,rr,"road");
+       LEG.wheel(B,[L*0.76,(-0.6+1.2*i/(nw-1))*len,z],r*0.36,w*0.40,rr,"road");
      for(let i=0;i<Math.max(2,GK.n(3));i++)
-       LEG.wheel(B,[L*0.3,(-0.4+0.8*i/Math.max(1,GK.n(3)-1))*len,z],r*0.24,w*0.26,rr,"return");
-     LEG.track(B,[L*0.6,0,z],len*0.8,r*0.85,r*0.5,w*0.36,rr);
-     B.panel([[L*0.18,z-w*0.4],[L*0.18,z+w*0.4],[L*0.55,z+w*0.4],[L*0.55,z-w*0.4]],len*1.7,
-             {det:{ribs:5,line:0.75},cant:Math.PI/2});
-     GK.clutter(B,[L*0.3,len*0.5,z],L*0.1,len*0.2,w*0.2,rr,4);
+       LEG.wheel(B,[L*0.32,(-0.4+0.8*i/Math.max(1,GK.n(3)-1))*len,z],r*0.16,w*0.30,rr,"return");
+     LEG.track(B,[L*0.62,0,z],len*0.92,r*0.58,r*0.36,w*0.48,rr);
+     /* the fender: a long plate over the top run, which is what separates a
+        track from a wheel of boxes when the machine is seen from above */
+     FORM.block(B,[L*0.20,0,z],L*0.055,len*1.08,w*0.52,{det:{ribs:4,line:0.75}});
+     GK.clutter(B,[L*0.32,len*0.5,z],L*0.08,len*0.18,w*0.2,rr,4);
    }
  }},
 {n:"WHEELED",cls:"ROLLER",make(B,mr,rr,R,E,probe,P){
-   const L=E.x*0.5, w=E.z*0.5, len=L*rr(1.0,1.35), r=L*0.34;
-   FORM.block(B,[L*0.26,0,0],L*0.26,len*0.42,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
+   const L=E.x*0.5, w=E.z*0.5, len=L*rr(1.0,1.35), r=L*0.48;
+   FORM.block(B,[L*0.26,0,0],L*0.28,len*0.46,w*0.85,{hideA:true,det:{ribs:4,line:0.7}});
    const nb=Math.max(2,GK.n(3));
    for(const s of [-1,1]) for(let i=0;i<nb;i++){
      const y=(-0.62+1.24*i/(nb-1||1))*len;
      /* each wheel is on its own trailing arm with a visible spring — a bogie,
-        not a wheel stuck to a box */
-     B.tube([L*0.3,y,s*w*0.8],[L*0.66,y,s*w*1.05],mr*0.22,mr*0.18,{det:hullDet([0.4],[],[])});
-     GK.piston(B,[L*0.24,y+len*0.1,s*w*0.85],[L*0.62,y,s*w*1.0],mr*0.14);
-     LEG.wheel(B,[L*0.72,y,s*w*1.12],r,w*0.4,rr,"road");
+        not a wheel stuck to a box. The wheel itself is sized like cargo-truck
+        rubber: half the hull height, not a caster. */
+     B.tube([L*0.3,y,s*w*0.8],[L*0.6,y,s*w*1.05],mr*0.26,mr*0.21,{det:hullDet([0.4],[],[])});
+     GK.piston(B,[L*0.22,y+len*0.1,s*w*0.85],[L*0.56,y,s*w*1.0],mr*0.15);
+     LEG.wheel(B,[L*0.62,y,s*w*1.12],r,w*0.46,rr,"road");
    }
    B.tube([L*0.34,-len*0.62,-w*0.8],[L*0.34,-len*0.62,w*0.8],mr*0.16,mr*0.16);
    GK.vent(B,[L*0.3,len*0.6,0],L*0.14,len*0.06,w*0.5,4,"x");
@@ -1673,31 +1720,38 @@ const LEG={
       const m=k=>[a[0]+(b[0]-a[0])*k,a[1]+(b[1]-a[1])*k,a[2]+(b[2]-a[2])*k];
       FORM.bone(B,a,b,Math.max(r1,r2),{
         r0:r1/Math.max(r1,r2)*1.02,r1:r2/Math.max(r1,r2)*0.98,
-        swell:i===0?0.20:0.13,mid:i===0?0.46:0.38,
+        swell:i===0?0.13:0.09,mid:i===0?0.46:0.38,
         opt:i===0?{hideA:true}:{}});
       if(o.plate&&i<2){
-        /* the armour shell over the thigh or shin: a lozenge, standing proud of
-           the bone, stopping short of both joints so the frame shows through */
-        FORM.slab(B,m(0.52),[b[0]-a[0],b[1]-a[1],b[2]-a[2]],
-          Math.hypot(b[0]-a[0],b[1]-a[1],b[2]-a[2])*0.34,r1*1.16,r1*0.86,
-          {det:{ribs:4,line:0.75}});
+        /* Layered, not inflated: the thigh gets a wrap with its face plate,
+           the shin gets a full greave whose skirt flares out over the ankle —
+           the shell overhanging the joint below is what plate armour does and
+           a swollen bone never will. Both stop short of the joints so the
+           frame still shows through at every bend. */
+        FORM.greave(B,a,b,Math.max(r1,r2),
+          i===0?{proud:1.12,skirt:1.02,t0:0.18,t1:0.84}
+               :{proud:1.18,skirt:1.12,t0:0.14,t1:0.90});
       }
       if(i<pts.length-2) GK.piston(B,m(0.30),pts[i+2]?m(0.94):b,r2*0.30);
     }
     for(let i=1;i<pts.length-1;i++){
       const r=rad[i], a=pts[i-1], b=pts[i], c=pts[i+1];
-      GK.gear(B,pts[i],"z",r*1.04,12);
-      B.ball(pts[i],r*0.86,{det:hullDet([0.4,0.75],[],[])});
+      GK.gear(B,pts[i],"z",r*1.06,12);
+      B.ball(pts[i],r*0.88,{det:hullDet([0.4,0.75],[],[])});
       /* the cap points along the bisector of the two bones, so a knee that
          bends forward gets its armour on the front and a reverse joint gets it
-         on the back without either of them being told which it is */
+         on the back without either of them being told which it is.
+         Only on UNPLATED chains: a plated leg already armours its joints by
+         overlap — the thigh's skirt hangs over the shin greave's rim — and a
+         flared cap on top of that pair is seen end-on from the front, where it
+         reads as a balloon stitched to the knee. */
       const n1=(()=>{const d=[b[0]-a[0],b[1]-a[1],b[2]-a[2]],L2=Math.hypot(d[0],d[1],d[2])||1;
         return [d[0]/L2,d[1]/L2,d[2]/L2];})();
       const n2=(()=>{const d=[c[0]-b[0],c[1]-b[1],c[2]-b[2]],L2=Math.hypot(d[0],d[1],d[2])||1;
         return [d[0]/L2,d[1]/L2,d[2]/L2];})();
       const bis=[n1[0]-n2[0],n1[1]-n2[1],n1[2]-n2[2]];
       const bl=Math.hypot(bis[0],bis[1],bis[2]);
-      if(bl>0.12) FORM.cap(B,pts[i],[bis[0]/bl,bis[1]/bl,bis[2]/bl],r*0.94,{len:1.6});
+      if(bl>0.12&&!o.plate) FORM.cap(B,pts[i],[bis[0]/bl,bis[1]/bl,bis[2]/bl],r*0.96,{len:1.55});
       GK.bolts(B,pts[i],"z",r*0.66,8);
     }
     GK.hose(B,pts[0],pts[pts.length-1],rad[0]*0.20,Math.max(6,GK.n(9)));
@@ -1709,28 +1763,41 @@ const LEG={
     B.ball(at,r*0.7);
     GK.gear(B,at,"z",r*0.8,10);
     if(kind==="plate"){
-      /* the sole is a lozenge with the corners taken off and a raised toe, not
-         a shoebox — a flat rectangle under a shaped leg is the tell */
-      FORM.slab(B,[x+size*0.55,y+size*0.30,z],[0,1,0],size*1.45,r*1.02,size*0.46,
+      /* A sabaton, not a slipper. The machine's whole argument for standing up
+         is made here, so the sole is broad enough that the support polygon
+         visibly contains the mass above it — a foot narrower than its own shin
+         is what makes a heavy machine read as tiptoeing. Ankle collar over the
+         joint, wide sole, raised toe wedge, and a heel plate aft, in layers
+         like everything else. */
+      B.lathe([x-size*0.55,y,z],[1,0,0],
+        [[0,r*0.86],[size*0.42,r*1.18],[size*0.86,r*1.10],[size*1.1,r*0.74]],
+        hullDet([0.35,0.7],[],[]),{ell:[1,0.86]});
+      /* the sole is a plate turned about its own thin axis — wider than the
+         shin it carries, which is the whole balance argument */
+      FORM.block(B,[x+size*0.55,y+size*0.30,z],size*0.30,size*1.85,r*1.35,
         {chamfer:0.62,det:{ribs:4,line:0.72}});
-      B.lathe([x+size*0.30,y+size*1.30,z],[0,1,0],
-        [[0,r*0.78],[size*0.34,r*0.62],[size*0.55,r*0.30]],
-        hullDet([0.4],[],[]),{ell:[1,0.55]});
+      /* the toe is a rolled band ACROSS the foot, not a cone aimed at the
+         viewer — face-on, a cone is a circle, and a circle at ground level
+         reads as a wheel the machine does not have */
+      FORM.slab(B,[x+size*0.42,y+size*1.50,z],[0,0,1],r*1.05,size*0.52,size*0.40,
+        {chamfer:0.6,det:{ribs:3,line:0.75}});
+      FORM.block(B,[x+size*0.30,y-size*1.35,z],size*0.42,size*0.55,r*0.98,
+        {chamfer:0.6,det:{ribs:3,line:0.75}});
       for(let i=0;i<3;i++)
-        FORM.slab(B,[x+size*0.86,y+size*(1.05-i*0.85),z],[0,0,1],r*0.86,size*0.20,size*0.16,
+        FORM.slab(B,[x+size*0.86,y+size*(1.25-i*0.95),z],[0,0,1],r*1.05,size*0.22,size*0.17,
           {chamfer:0.6});
-      GK.piston(B,[x-size*0.36,y-size*0.5,z],[x+size*0.40,y-size*0.92,z],r*0.20);
+      GK.piston(B,[x-size*0.36,y-size*0.5,z],[x+size*0.40,y-size*1.05,z],r*0.22);
     }else if(kind==="talon"){
       /* claws straight off the end of the shank. This used to start with a
          whole extra bone, which is what put a phantom joint in every
          reverse-joint leg — the shank already arrives here, it does not need
          a second one before the toes. */
       for(const s of [-1,0,1]){
-        FORM.bone(B,[x,y,z],[x+size*0.72,y+size*1.5,z+s*r*1.5],r*0.42,{swell:0.14,r1:0.46});
+        FORM.bone(B,[x,y,z],[x+size*0.72,y+size*1.5,z+s*r*1.5],r*0.56,{swell:0.14,r1:0.5});
         B.lathe([x+size*0.72,y+size*1.5,z+s*r*1.5],[size*0.22,size*0.5,s*r*0.4],
-          [[0,r*0.22],[size*0.32,r*0.12],[size*0.5,r*0.015]],hullDet([0.5],[],[]));
+          [[0,r*0.30],[size*0.34,r*0.16],[size*0.52,r*0.02]],hullDet([0.5],[],[]));
       }
-      FORM.bone(B,[x,y,z],[x+size*0.66,y-size*1.15,z],r*0.36,{r1:0.4});
+      FORM.bone(B,[x,y,z],[x+size*0.66,y-size*1.15,z],r*0.48,{r1:0.44});
       B.lathe([x+size*0.66,y-size*1.15,z],[size*0.2,-size*0.42,0],
         [[0,r*0.16],[size*0.28,r*0.02]],hullDet([0.5],[],[]));
     }else if(kind==="pad"){
@@ -1760,12 +1827,16 @@ const LEG={
   /* the grouser run: real shoes on the perimeter of the track envelope */
   track(B,c,half,rf,rr2,halfw,rr){
     const [x,y,z]=c;
-    const N=Math.max(10,GK.n(22));
+    const N=Math.max(12,GK.n(26));
     for(let i=0;i<N;i++){
       const t=i/N*Math.PI*2;
       /* a stadium, not a circle — two arcs joined by the top and bottom runs */
       const yy=Math.cos(t)*half, xx=Math.sin(t)*rf;
-      B.box([x+xx,y+yy,z],rf*0.1,half*0.075,halfw,{det:{ribs:2,line:0.85}});
+      /* each shoe carries its grouser: the shoe is the plate, the grouser is
+         the taller thin bar across it, and the pair is what makes the run
+         read as track links instead of a ring of rivets */
+      B.box([x+xx,y+yy,z],rf*0.055,half*0.085,halfw,{det:{ribs:2,line:0.85}});
+      B.box([x+xx*1.045,y+yy*1.045,z],rf*0.028,half*0.032,halfw*1.06);
     }
   }
 };
@@ -2416,10 +2487,19 @@ function mechSockets(c,parts,rr,R,P,lock){
        quietly stops correcting */
     const span=r0*0.94+Math.max(TR*1.15,Math.min(c.shZ*1.15,r0*1.75)-r0*0.94);
     const aspect=stand/(span*2);
-    if(aspect<=1.95)break;
-    wid*=Math.min(1.7,aspect/1.95);
+    /* 1.75, down from 1.95. A machine two heads taller than it is broad reads
+       as balanced; the heavy classes this yard is after read closer to one and
+       a half. The guard is a ceiling, not a target — squat chassis pass
+       through untouched — but the tall end of every roll now puts more of
+       itself into the beam. */
+    if(aspect<=1.75)break;
+    wid*=Math.min(1.7,aspect/1.75);
   }
-  const hipW=Math.max(c.hipW,TR*wid*1.30);
+  /* The girdle carries the stance and the stance carries the weight argument:
+     a broad body balanced on a narrow pelvis is where the top-heavy read
+     comes from, however good the torso is. 1.48 puts the feet out under the
+     shoulders rather than under the sternum. */
+  const hipW=Math.max(c.hipW,TR*wid*1.48);
   /* And the yoke has to sit ON the shoulder. Capping the torso moved the body
      in without moving the arms, so the yokes stayed where a wider machine would
      have put them and the arms hung in space on long spindly stubs — connected
@@ -2490,14 +2570,19 @@ function mechSockets(c,parts,rr,R,P,lock){
      toward the pad. Give it too little drop and the arm starts inside the
      pauldron; give it too much and it is drawn up until it meets the underside,
      which is exactly the join we want and is found rather than specified. */
+  /* The forearm mounts HEAVIER than the humerus, not lighter. An arm that is
+     a weapon housing grows toward its business end — the fist or the gun is
+     the widest thing on it — and an arm that tapers to the wrist is a person's
+     arm, which is the single biggest tell separating a suit of armour from a
+     walking gun carriage. */
   S.upper=FR([leanX*shY,shY-TR*0.98,armZ],down,fore,star,
-             {x:armL,y:armR*1.2,z:armR*1.2},false,armR);
+             {x:armL,y:armR*1.25,z:armR*1.25},false,armR);
   S.fore=FR([leanX*shY,shY-TR*0.98-armL*0.84,armZ],down,fore,star,
-            {x:foreL,y:armR*1.15,z:armR*1.15},false,armR*0.9);
+            {x:foreL,y:armR*1.4,z:armR*1.4},false,armR*1.05);
   S.waist=FR([leanX*waistY,waistY,0],down,fore,star,
              {x:TH*0.4,y:TR*dep*1.2,z:TR*wid*1.5},false,TR*prof(waistY/TH)*0.9);
   S.hip=FR([0,-hipH*0.2,0],down,fore,star,{x:hipH,y:TR*dep*1.1,z:hipW},false,TR*0.78);
-  S.drive=FR([0,-hipH,0],down,fore,star,{x:driveL,y:TR*dep*2.0,z:hipW*1.05},true,TR*0.8);
+  S.drive=FR([0,-hipH,0],down,fore,star,{x:driveL,y:TR*dep*2.0,z:hipW*1.1},true,TR*0.8);
   S.aux=FR([leanX*auxY,auxY,auxZ],star,up,fore,{x:TR*0.7,y:TR*0.7,z:TR*0.7});
   /* A bulk figure taken straight off the chassis numbers. Every one of them is
      rolled from the seed before a single part is drawn, so this cannot move
@@ -2519,30 +2604,38 @@ const HOUR=(waist,chest,collar)=>t=>{
 };
 const P0=HOUR(0.72,1.04,0.88);              /* the default torso is an hourglass */
 const U2M3=0.155*0.155*0.155;               /* build units cubed, in cubic metres */
+/* armR at 4.4 rather than 3.6: at a third of the torso radius the arms read
+   as levers; at four tenths and growing toward the fist they read as housings.
+   This is the single number most responsible for the machines' beef. */
 const base=o=>Object.assign({
-  TH:34,TR:11,dep:0.86,wid:1.14,shY:29,shZ:15,neckH:5,armR:3.6,armL:15,foreL:15,
+  TH:34,TR:11,dep:0.86,wid:1.14,shY:29,shZ:15,neckH:5,armR:4.4,armL:15,foreL:15,
   hipH:7,hipW:11,driveL:44,chestY:22,backY:24,waistY:3,prof:P0,auxY:26,auxZ:12,leanX:0
 },o);
 
 const TOPO=[
 {n:"HUMANOID",axial:false,note:"narrow waist, high yoke — the reference build",
+ /* driveL sits BELOW torso height across the board now — every chassis used
+    to give the legs more length than the body, which is a person's proportion,
+    and a person is exactly what a twelve-hundred-tonne machine must not move
+    like. Short legs under a deep hull put the mass low without touching a
+    single part. */
  make(R,rr,P,parts,lock){return mechSockets(base({
    TH:rr(32,38),TR:rr(10,12),dep:rr(0.85,1.0),wid:rr(0.95,1.15),
-   shY:rr(28,32),shZ:rr(14,17),armL:rr(14,17),foreL:rr(13,16),driveL:rr(42,50),
+   shY:rr(28,32),shZ:rr(14,17),armL:rr(14,17),foreL:rr(13,16),driveL:rr(36,44),
    prof:HOUR(rr(0.58,0.66),rr(1.04,1.12),rr(0.82,0.90))
  }),parts,rr,R,P,lock);}},
 {n:"BARREL",axial:false,note:"squat and wide; the yoke sits at mid-chest",
  make(R,rr,P,parts,lock){return mechSockets(base({
    TH:rr(22,27),TR:rr(13,16),dep:rr(1.0,1.2),wid:rr(1.15,1.4),
    shY:rr(17,21),shZ:rr(17,21),armL:rr(10,13),foreL:rr(10,13),
-   hipH:rr(5,8),hipW:rr(13,17),driveL:rr(30,40),chestY:rr(13,17),backY:rr(14,19),
+   hipH:rr(5,8),hipW:rr(13,17),driveL:rr(26,34),chestY:rr(13,17),backY:rr(14,19),
    prof:HOUR(rr(0.88,0.96),rr(1.08,1.16),rr(0.96,1.04))
  }),parts,rr,R,P,lock);}},
 {n:"HUNCHBACK",axial:false,note:"head sunk between the yokes, mass carried aft",
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(26,31),TR:rr(11,14),dep:rr(1.1,1.35),wid:rr(1.0,1.2),
      shY:rr(24,29),shZ:rr(15,19),neckH:rr(1.6,3),armL:rr(12,15),foreL:rr(12,16),
-     driveL:rr(34,44),backY:rr(20,26),leanX:rr(-0.16,-0.08),
+     driveL:rr(30,38),backY:rr(20,26),leanX:rr(-0.16,-0.08),
      prof:HOUR(rr(0.62,0.72),rr(1.00,1.08),rr(0.76,0.84))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    /* the dorsal hump is chassis so the backpack variant lands on top of it */
@@ -2555,7 +2648,7 @@ const TOPO=[
 {n:"GANTRY",axial:true,note:"no shell at all — an open frame with modules clipped in",
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(30,36),TR:rr(11,14),dep:rr(0.9,1.05),wid:rr(0.95,1.15),
-     shY:rr(26,32),shZ:rr(15,19),armL:rr(13,17),foreL:rr(12,16),driveL:rr(38,48),
+     shY:rr(26,32),shZ:rr(15,19),armL:rr(13,17),foreL:rr(12,16),driveL:rr(33,42),
      prof:HOUR(rr(0.76,0.86),rr(0.98,1.06),rr(0.86,0.94))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    for(let i=0;i<4;i++){const a=i/4*Math.PI*2+0.4;
@@ -2569,7 +2662,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(20,25),TR:rr(13,16),dep:rr(1.0,1.1),wid:rr(1.0,1.1),
      shY:rr(14,18),shZ:rr(16,20),neckH:rr(1.4,2.6),armL:rr(10,13),foreL:rr(10,14),
-     hipH:rr(4,6),hipW:rr(14,18),driveL:rr(28,40),chestY:rr(11,15),backY:rr(12,17),
+     hipH:rr(4,6),hipW:rr(14,18),driveL:rr(25,34),chestY:rr(11,15),backY:rr(12,17),
      prof:HOUR(rr(0.96,1.04),rr(1.04,1.12),rr(0.92,1.00))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    parts.push(DSC([0,-c.hipH*0.2,0],[0,1,0],c.TR*1.25,c.TR*0.7));
@@ -2582,7 +2675,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(26,32),TR:rr(8,10),dep:rr(1.0,1.2),wid:rr(0.9,1.1),
      shY:rr(23,29),shZ:rr(17,22),armL:rr(12,16),foreL:rr(12,16),
-     hipW:rr(14,18),driveL:rr(36,46),prof:HOUR(rr(0.62,0.72),rr(0.96,1.04),rr(0.80,0.88))});
+     hipW:rr(14,18),driveL:rr(31,40),prof:HOUR(rr(0.62,0.72),rr(0.96,1.04),rr(0.80,0.88))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    /* the second mass is placed off the centreline; the mirror pass makes it a
       pair, and everything bolted to it comes along for free */
@@ -2597,7 +2690,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(24,29),TR:rr(11,14),dep:rr(1.25,1.5),wid:rr(1.0,1.15),
      shY:rr(17,22),shZ:rr(15,19),neckH:rr(2,3.4),armL:rr(12,16),foreL:rr(12,16),
-     driveL:rr(32,42),chestY:rr(16,21),leanX:rr(0.05,0.14),
+     driveL:rr(28,36),chestY:rr(16,21),leanX:rr(0.05,0.14),
      prof:HOUR(rr(0.82,0.92),rr(1.02,1.10),rr(0.66,0.76))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    parts.push(TUB([c.TR*0.8,c.TH*0.66,0],[c.TR*2.0,c.TH*0.56,0],c.TR*0.75,c.TR*0.5,
@@ -2611,7 +2704,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(28,34),TR:rr(12,15),dep:rr(0.75,0.9),wid:rr(1.2,1.45),
      shY:rr(24,30),shZ:rr(16,20),neckH:rr(2,3.6),armL:rr(12,16),foreL:rr(12,16),
-     driveL:rr(36,46),prof:HOUR(rr(0.66,0.76),rr(1.06,1.16),rr(0.84,0.92))});
+     driveL:rr(31,40),prof:HOUR(rr(0.66,0.76),rr(1.06,1.16),rr(0.84,0.92))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    for(const s of [-1,1])
      parts.push(PNL([[s*c.TR*0.5,0,c.TR*c.wid*0.95],[s*c.TR*0.9,c.TH*0.55,c.TR*c.wid*1.05],
@@ -2626,14 +2719,14 @@ const TOPO=[
       stretched, rather than a different animal. */
    TH:rr(34,40),TR:rr(10.5,12.5),dep:rr(0.9,1.05),wid:rr(0.95,1.1),
    shY:rr(29,36),shZ:rr(15,19),armL:rr(17,21),foreL:rr(16,20),
-   hipH:rr(6,9),hipW:rr(11,14),driveL:rr(40,48),chestY:rr(24,30),backY:rr(25,32),
+   hipH:rr(6,9),hipW:rr(11,14),driveL:rr(36,44),chestY:rr(24,30),backY:rr(25,32),
    auxY:rr(30,38),prof:HOUR(rr(0.54,0.62),rr(0.98,1.06),rr(0.78,0.86))
  }),parts,rr,R,P,lock);}},
 {n:"CRADLE",axial:false,note:"torso slung low between the hips — a quadruped's build",
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(18,23),TR:rr(13,16),dep:rr(1.3,1.6),wid:rr(1.1,1.3),
      shY:rr(13,17),shZ:rr(16,20),neckH:rr(3,5),armL:rr(9,12),foreL:rr(9,13),
-     hipH:rr(3,5),hipW:rr(16,21),driveL:rr(26,36),chestY:rr(10,14),backY:rr(10,15),
+     hipH:rr(3,5),hipW:rr(16,21),driveL:rr(24,32),chestY:rr(10,14),backY:rr(10,15),
      waistY:rr(1,3),prof:HOUR(rr(0.84,0.94),rr(1.04,1.12),rr(0.86,0.94))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    /* the mass slung between the hips: turned about its own thin axis so it is
@@ -2648,7 +2741,7 @@ const TOPO=[
  make(R,rr,P,parts,lock){
    const c=base({TH:rr(26,32),TR:rr(10,13),dep:rr(0.7,0.85),wid:rr(1.0,1.2),
      shY:rr(23,29),shZ:rr(14,18),armL:rr(12,16),foreL:rr(12,16),
-     driveL:rr(34,44),backY:rr(16,22),leanX:rr(-0.1,-0.03),prof:HOUR(rr(0.62,0.72),rr(0.96,1.04),rr(0.80,0.88))});
+     driveL:rr(30,38),backY:rr(16,22),leanX:rr(-0.1,-0.03),prof:HOUR(rr(0.62,0.72),rr(0.96,1.04),rr(0.80,0.88))});
    const m=mechSockets(c,parts,rr,R,P,lock);
    bigMass(parts,[-c.TR*1.5,c.TH*0.11,0],[0,1,0],c.TH*0.76,c.TR*0.76,[c.wid*1.30,1.06],rr,R,
      {segs:3,strakes:4,taper:0.16,strakeOff:0.4});
