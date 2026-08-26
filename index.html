@@ -4237,12 +4237,16 @@ function renderSheet(t,W,H,ship,P,pal,opts){
       t.text(str,x,y,{size:fitSize(str,size,tr,max),color:ink,weight,tracking:tr,anchor});
     T(M.desig,bxx+pad,byy+bh*0.28,bh*0.215,bh*0.016,700,lw1);
     T(M.klass,bxx+pad,byy+bh*0.45,bh*0.092,bh*0.011,500,lw1);
-    const sp=ship.chosen.recipeShort||ship.chosen.recipe||ship.chosen.topo.n;
-    const cfg=sp+"   "+["head","shoulder","fore","shoulderL","foreL","back","drive"]
-      .map((s2,j)=>"HSFsfBD"[j]+((ship.chosen[s2]?ship.chosen[s2].i:0)+1)).join(" · ")
-      +(ship.meta.sym!=="BILATERAL"?"   "+ship.meta.sym:"")
-      +(ship.meta.note?"   "+ship.meta.note:"");
-    T(cfg,bxx+pad,byy+bh*0.60,bh*0.092,bh*0.011,500,lw1);
+    /* This line used to carry four things at once — the torso recipe, an index
+       code for every slot, the symmetry and the chassis note — and `fitSize`
+       then shrank the lot to fit the column, which is why it rendered as a grey
+       smudge nobody could read. A caption is not a data dump. Keep the one part
+       of it that says something a reader would want to know, at a size they can
+       actually read it at. */
+    const note=(ship.meta.note||"").split(/[;—]/)[0].trim();
+    const cfg=(note||ship.chosen.recipeShort||ship.chosen.recipe||ship.chosen.topo.n)
+      .toUpperCase()+(ship.meta.sym!=="BILATERAL"?"   "+ship.meta.sym:"");
+    T(cfg,bxx+pad,byy+bh*0.60,bh*0.105,bh*0.013,500,lw1);
     T("MECH YARD",bxx+bw-pad,byy+bh*0.26,bh*0.115,bh*0.018,600,rw1,"end");
     T("FRAME "+M.seed,bxx+bw-pad,byy+bh*0.44,bh*0.115,bh*0.018,500,rw1,"end");
     T("SHEET 1 OF 1",bxx+bw-pad,byy+bh*0.61,bh*0.095,bh*0.014,500,rw1,"end");
