@@ -261,10 +261,14 @@ reference pool everything downstream needs — a judge has to be told what good
 looks like, and the only source for that is you.
 
 ```
+cd path/to/mech-yard
 node tune/rate.js            # rate at http://127.0.0.1:8732
 node tune/rate.js --stats    # counts by verdict, chassis and drive
 node tune/rate.js --export   # the love-tier seeds, one per line
 ```
+
+It finds the generator relative to its own location, not to your shell, so
+`node ~/mech-yard/tune/rate.js` works from anywhere too.
 
 `1` nope, `2` okay, `3` love; `N` for a new sheet. Toggle between the pictorial
 and the front elevation — proportion reads better on the elevation, character on
