@@ -1,0 +1,132 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Mech Yard · rate</title>
+<style>
+:root{--ground:#0b0f14;--panel:#111820;--rule:#22303d;--ink:#d7e3ee;--dim:#7b90a4;
+  --love:#5ad18e;--okay:#d8b444;--nope:#d4645a}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--ground);color:var(--ink);
+  font:13px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace}
+header{position:sticky;top:0;z-index:5;background:var(--panel);
+  border-bottom:1px solid var(--rule);padding:10px 16px;
+  display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+h1{font-size:13px;letter-spacing:.22em;text-transform:uppercase;margin:0;font-weight:600}
+.count{color:var(--dim)}
+.count b{color:var(--ink);font-weight:600}
+.spacer{flex:1}
+button{font:inherit;background:transparent;color:var(--ink);border:1px solid var(--rule);
+  padding:5px 12px;cursor:pointer;letter-spacing:.08em;text-transform:uppercase}
+button:hover{border-color:var(--ink)}
+button[aria-pressed=true]{background:var(--rule)}
+.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;padding:12px}
+figure{margin:0;border:1px solid var(--rule);background:var(--panel);position:relative;
+  display:flex;flex-direction:column;cursor:pointer}
+figure.focus{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+figure[data-r=love]{border-color:var(--love)}
+figure[data-r=okay]{border-color:var(--okay)}
+figure[data-r=nope]{border-color:var(--nope);opacity:.45}
+figure svg{display:block;width:100%;height:auto}
+figcaption{padding:6px 8px;border-top:1px solid var(--rule);font-size:10.5px;
+  color:var(--dim);line-height:1.6}
+figcaption .d{color:var(--ink);letter-spacing:.06em}
+.verdict{position:absolute;top:6px;right:6px;font-size:10px;letter-spacing:.16em;
+  text-transform:uppercase;padding:2px 7px;border:1px solid currentColor}
+[data-r=love] .verdict{color:var(--love)}
+[data-r=okay] .verdict{color:var(--okay)}
+[data-r=nope] .verdict{color:var(--nope)}
+.keys{display:flex;gap:4px;padding:6px 8px;border-top:1px solid var(--rule)}
+.keys button{flex:1;padding:4px 0;font-size:10px}
+.note{padding:0 16px 18px;color:var(--dim)}
+.warn{color:var(--okay)}
+@media (max-width:1500px){.grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:1000px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style></head>
+<body>
+<header>
+  <h1>Mech Yard · rate</h1>
+  <span class="count"><b id="done">0</b> rated · <b id="love">0</b> love</span>
+  <span class="count" id="sheet">sheet 0/12</span>
+  <span class="spacer"></span>
+  <button id="view" aria-pressed="false">Front elevation</button>
+  <button id="next">Next sheet · N</button>
+</header>
+<div class="grid" id="grid"></div>
+<p class="note" id="note">1 nope · 2 okay · 3 love — rates the highlighted frame and moves on.
+  Click any frame to jump to it. Re-rating overwrites.</p>
+<script>
+const $ = s => document.querySelector(s);
+let items = [], focus = 0, view = "iso";
+
+function draw() {
+  const g = $("#grid");
+  g.innerHTML = "";
+  items.forEach((it, i) => {
+    const f = document.createElement("figure");
+    if (it.rating) f.dataset.r = it.rating;
+    if (i === focus) f.classList.add("focus");
+    f.innerHTML = it.svg +
+      (it.rating ? `<span class="verdict">${it.rating}</span>` : "") +
+      `<figcaption><span class="d">${it.desig}</span><br>` +
+      `${it.chassis} · ${it.drive} · w/h ${it.hw} · ${it.parts}p<br>` +
+      `<span style="opacity:.7">${it.yokes}</span></figcaption>` +
+      `<div class="keys">
+         <button data-v="nope">1 nope</button>
+         <button data-v="okay">2 okay</button>
+         <button data-v="love">3 love</button>
+       </div>`;
+    f.addEventListener("click", e => {
+      const b = e.target.closest("button");
+      focus = i;
+      if (b) rate(i, b.dataset.v); else draw();
+    });
+    g.appendChild(f);
+  });
+  const n = items.filter(i => i.rating).length;
+  $("#sheet").textContent = `sheet ${n}/${items.length}`;
+}
+
+async function rate(i, verdict) {
+  const it = items[i];
+  it.rating = verdict;
+  draw();
+  const res = await fetch("/rate", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ seed: it.seed, rating: verdict, chassis: it.chassis,
+                           drive: it.drive, hw: it.hw })
+  }).then(r => r.json()).catch(() => null);
+  if (res && res.ok) { $("#done").textContent = res.done; $("#love").textContent = res.love; }
+  else $("#note").innerHTML = '<span class="warn">could not save that verdict — is the server still running?</span>';
+  // move to the next frame that has no verdict yet; a full sheet loads another
+  const nxt = items.findIndex((x, k) => k > i && !x.rating);
+  const any = items.findIndex(x => !x.rating);
+  if (nxt >= 0) { focus = nxt; draw(); }
+  else if (any >= 0) { focus = any; draw(); }
+  else load();
+}
+
+async function load() {
+  $("#grid").innerHTML = '<p class="note">rendering…</p>';
+  const r = await fetch(`/batch?n=12&view=${view}`).then(r => r.json());
+  items = r.items; focus = 0; draw();
+  $("#done").textContent = r.done; $("#love").textContent = r.love;
+}
+
+addEventListener("keydown", e => {
+  if (e.key === "1") rate(focus, "nope");
+  else if (e.key === "2") rate(focus, "okay");
+  else if (e.key === "3") rate(focus, "love");
+  else if (e.key.toLowerCase() === "n") load();
+  else if (e.key === "ArrowRight") { focus = Math.min(items.length - 1, focus + 1); draw(); }
+  else if (e.key === "ArrowLeft")  { focus = Math.max(0, focus - 1); draw(); }
+  else return;
+  e.preventDefault();
+});
+$("#next").onclick = load;
+$("#view").onclick = e => {
+  view = view === "iso" ? "front" : "iso";
+  e.target.setAttribute("aria-pressed", String(view === "front"));
+  e.target.textContent = view === "front" ? "Pictorial" : "Front elevation";
+  load();
+};
+load();
+</script>
+</body></html>

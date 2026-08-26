@@ -252,3 +252,28 @@ Output is pure vector throughout — the PNG and SVG exports are the same drawin
 ## Running locally
 
 Open `index.html`. That is the whole thing.
+
+## Tuning
+
+`tune/rate.js` is a local contact-sheet rater. It renders twelve frames at a
+time and records your verdict on each into `tune/ratings.json`, which is the
+reference pool everything downstream needs — a judge has to be told what good
+looks like, and the only source for that is you.
+
+```
+node tune/rate.js            # rate at http://127.0.0.1:8732
+node tune/rate.js --stats    # counts by verdict, chassis and drive
+node tune/rate.js --export   # the love-tier seeds, one per line
+```
+
+`1` nope, `2` okay, `3` love; `N` for a new sheet. Toggle between the pictorial
+and the front elevation — proportion reads better on the elevation, character on
+the pictorial.
+
+**A rating belongs to a build.** The seed is not the drawing, the generator is:
+change the geometry and the same seed renders a different machine. Every verdict
+records the build it was made against, `--stats` reports how many are stale, and
+`--export` only emits ones that still describe what this code makes. Without
+that the pool rots silently, which is the worst way for it to rot.
+
+Nothing here ships — the tool is in the repo, the ratings are gitignored.

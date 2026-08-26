@@ -2,6 +2,8 @@
 # This repo is public — nothing in here is ours to redistribute.
 references/
 
-# Local tuning data and rendered contact sheets
-tune/
+# Tuning DATA is local; the tool that produces it belongs in the repo
+tune/ratings.json
+tune/.build.js
+tune/sheets/
 *.local.json
